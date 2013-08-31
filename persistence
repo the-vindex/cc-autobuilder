@@ -1,0 +1,118 @@
+--http://pastebin.com/n9DEEpaN
+--http://www.computercraft.info/forums2/index.php?/topic/1983-transparent-recursive-filesystem-persistence-api/
+-- kazagistar's persistence API V1.0
+-- do whatever you want with it, no rights reserved, as per WTFPL (http://sam.zoy.org/wtfpl/COPYING)
+
+os.loadAPI("serialization")
+
+local persistence
+
+function new(path)
+    local p = {}
+    local path = fs.combine(path, ".")
+    if fs.exists(path) == false then
+        fs.makeDir(path)
+    else
+        if fs.isDir(path) == false then
+            error("persistence path "..path.." is not a folder")
+        end
+    end
+    p.path = path
+    setmetatable(p, persistence.metatable)
+    return p
+end
+
+function keys(p)
+    return fs.list(persistence.path(p))
+end
+
+function path(p)
+    return rawget(p,"path")
+end
+
+local function pair_(p)
+    local t = {}
+    for _, k in ipairs(persistence.keys(p)) do
+        t[k] = p[k]
+    end
+    return pairs(t)
+end
+
+local function tabl_(p)
+    local t = {}
+    for _, k in ipairs(persistence.keys(p)) do
+        t[k] = p[k]
+        if type(t[k]) == "table" then
+            t[k] = persistence.table(t[k])
+        end
+    end
+    return t
+end
+
+
+local function put(self, key, value)
+    local path = fs.combine(persistence.path(self), key)
+    local t = type(value)
+    if t == "table" then
+        local mt = getmetatable(value)
+        if mt ~= nil and mt.__persist ~= nil then
+            mt.__persist(value, path)
+            return
+        end
+        fs.delete(path)
+        local sub = persistence.new(path)
+        for k,v in pairs(value) do
+            sub[k]=v
+        end
+        return
+    elseif t == "number" or t == "string" or t == "boolean" then
+        fs.delete(path)
+        local file = fs.open(path,"w")
+        file.writeLine(t)
+        file.writeLine(value)
+        file.close()
+        return
+    elseif t == "nil" then
+        fs.delete(path)
+        return
+    end
+    error("Cannot persist object of type "..t)
+end
+local function get(self, key)
+    local path = fs.combine(persistence.path(self), key)
+    if fs.exists(path) == false then
+        return nil
+    end
+    if fs.isDir(path) then
+        return persistence.new(path)
+    end
+    local file = fs.open(path,"r")
+    local t = file.readLine()
+    local value = file.readLine()
+    file.close()
+    if t == "number" then
+        return tonumber(value)
+    elseif t == "string" then
+        return value
+    elseif t == "boolean" then
+        return value=="true"
+    end
+end
+-- any table that implements __persist in its metatable will have that function called to store it. No reverse mechanism exists... yet
+local function persist(self, path)
+    local mypath = persistence.path(self)
+    if mypath ~= path then
+        fs.delete(path)
+        fs.copy(mypath, path)
+    end
+end
+
+if persistence == nil then
+    persistence = {}
+    persistence.new = new
+    persistence.keys = keys
+    persistence.path = path
+    persistence.pairs = pair_
+    persistence.table = tabl_
+    persistence.metatable = {__newindex = put, __index = get, __persist = persist}
+end
