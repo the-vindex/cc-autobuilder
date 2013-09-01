@@ -1,0 +1,48 @@
+os.loadAPI("persistence")
+
+function printApi(t)
+  local count = 0                
+  for i,v in ipairs(t) do 
+      print(i)
+      count = count + 1 
+  end
+  if count == 0 then 
+    for i,v in pairs(t) do print(i) end
+  end
+end
+
+function assertEquals(expected, actual)
+   if (expected == actual) then
+   else
+      if expected == nil then
+         expected = "nil"
+      end
+      if actual == nil then
+         actual = "nil"
+      end
+      print("FAIL! expected: ["..expected.."], actual: ["..actual.."]")
+   end
+end
+
+print(persistence)
+printApi(persistence)
+
+d = persistence.new("data")
+d.cislo = 127
+d.text = "asfd"
+d.pravda = true
+d.nepravda = false
+d.nilHodnota = nil
+d.tabulka = {cislo = 5, text = "innerText", pravda = true, nepravda = false, nilHodnota = nil}
+
+d = persistence.new("data")
+assertEquals(127, d.cislo)
+assertEquals("asfd", d.text)
+assertEquals(true, d.pravda)
+assertEquals(false, d.nepravda)
+assertEquals(nil, d.nilHodnota)
+assertEquals(5, d.tabulka.cislo)
+assertEquals(nil, d.tabulka.nilHodnota)
+assertEquals("innerText", d.tabulka.text)
+assertEquals(true, d.tabulka.pravda)
+assertEquals(false, d.tabulka.nepravda)
