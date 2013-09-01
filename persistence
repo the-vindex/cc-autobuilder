@@ -52,32 +52,12 @@ end
 
 local function put(self, key, value)
     local path = fs.combine(persistence.path(self), key)
-    local t = type(value)
-    if t == "table" then
-        local mt = getmetatable(value)
-        if mt ~= nil and mt.__persist ~= nil then
-            mt.__persist(value, path)
-            return
-        end
-        fs.delete(path)
-        local sub = persistence.new(path)
-        for k,v in pairs(value) do
-            sub[k]=v
-        end
-        return
-    elseif t == "number" or t == "string" or t == "boolean" then
-        fs.delete(path)
-        local file = fs.open(path,"w")
-        file.writeLine(t)
-        file.writeLine(value)
-        file.close()
-        return
-    elseif t == "nil" then
-        fs.delete(path)
-        return
-    end
-    error("Cannot persist object of type "..t)
+    fs.delete(path)
+    local file = fs.open(path,"w")
+    file.writeLine(serialization.serialize(value))
+    file.close()    
 end
+
 local function get(self, key)
     local path = fs.combine(persistence.path(self), key)
     if fs.exists(path) == false then
@@ -87,16 +67,9 @@ local function get(self, key)
         return persistence.new(path)
     end
     local file = fs.open(path,"r")
-    local t = file.readLine()
     local value = file.readLine()
     file.close()
-    if t == "number" then
-        return tonumber(value)
-    elseif t == "string" then
-        return value
-    elseif t == "boolean" then
-        return value=="true"
-    end
+    return serialization.deserialize(value)
 end
 -- any table that implements __persist in its metatable will have that function called to store it. No reverse mechanism exists... yet
 local function persist(self, path)
