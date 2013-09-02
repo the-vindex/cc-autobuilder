@@ -1,0 +1,265 @@
+----------- Farm Builder
+-- Program builds a farm and deploys bricks supporting soil.
+-- Turtle starts at south eastern top corner of the farm - just above the farm level.
+-- Required input:
+local ITEM = {}
+------------------------ Farm -----------------
+ITEM.FARM_BLOCK = 1 --   Farm blocks
+ITEM.FARM_HATCH = 2 --   Farm Hatch
+ITEM.FARM_GEARBOX = 3 -- Farm Gearbox
+ITEM.FARM_VALVE = 4 --   Farm Valve
+ITEM.STONE_BRICKS = 5 -- Stone Bricks
+--    Circuit board
+-----------------------  Power ----------------
+ITEM.ENERGY_TESSERACT = 6 --   Energy Tesseract
+-----------------------  Water ----------------
+ITEM.WATER_TESSERACT = 7 --   Liquid Tesseract
+-----------------------  Items out ------------
+ITEM.ENDER_CHEST = 8 --  Ender Chest
+-----------------------  Items in -------------
+ITEM.ITEM_TESSERACT_1 = 9 --   Fertilizer
+ITEM.ITEM_TESSERACT_2 = 10 --   Soil
+ITEM.ITEM_TESSERACT_3 = 11 --   Gremlins
+
+------------------------ Infrastructure - remote connection to home base
+ITEM.FLOPPY = 13 -- floppy for sending commands
+ITEM.DISK_DRIVE = 14 -- disk drive for floppy access
+ITEM.CHEST_OUT = 15 -- chest for items going out to home base
+ITEM.CHEST_IN = 16 -- chest for items going in
+------------------------ Reserved spaces
+ITEM.EMPTY = 12  -- may contain anything turtle digs
+
+local FREQ = {}
+FREQ.WATER = 10
+FREQ.ENERGY = 1
+FREQ.FERTILIZER = 2
+FREQ.BOG_EARTH = 3
+ 
+
+function printApi(t)
+  local count = 0
+  local pagination = 1                
+  for i,v in ipairs(t) do
+      if pagination % 11 == 0 then
+         read()
+      end 
+      print(i)
+      count = count + 1
+      pagination = pagination + 1 
+  end
+  if count == 0 then 
+    for i,v in pairs(t) do
+      if pagination % 11 == 0 then
+         read()
+      end  
+      print(i)
+      pagination = pagination + 1 
+    end
+  end
+end
+
+function printTable(t)
+  local pagination = 1
+  for i,v in pairs(t) do
+    if pagination % 11 == 0 then
+       read()
+    end  
+    print(i)
+    pagination = pagination + 1 
+  end
+end
+
+----- START of function call recorder
+function s(value)
+   if value == nil then
+     return ""
+   else
+     return value
+   end
+end
+
+local mode = "replay"
+local log = {}
+
+function addLog(functionName, func, parameters)
+   local logItem = {functionName = functionName, func = func, parameters = parameters}
+   log[#log+1] = logItem   
+end
+
+function wrap(name, f)
+  print("Wrapping "..name)
+  local _f = f
+  local _name = name
+  return function(self,a1,a2,a3,a4,a5)
+     --print("Call to ".._name.."("..s(a1)..","..s(a2)..","..s(a3)..","..s(a4)..","..s(a5)..")")
+     if mode == "record" or mode=="plan" then
+        addLog(_name,_f,{a1,a2,a3,a4,a5})
+     end
+     
+     if mode ~= "plan" then
+        _f(self, a1,a2,a3,a4,a5)
+     end
+  end
+end
+
+function wrapAll(t)
+   for name,originalFunction in pairs(t:listMethods()) do
+      local proxy = wrap(name, originalFunction)
+      t[name] = proxy
+   end
+end
+
+function play(object)
+   for i, item in ipairs(log) do
+      local a1, a2, a3, a4, a5 = item.parameters[1], item.parameters[2], item.parameters[3], item.parameters[4], item.parameters[5]
+      object[item.functionName](object,a1,a2,a3,a4,a5)
+   end
+end
+------------------ END of recorder
+
+------------------ FarmBuilder Start
+FarmBuilder = {}
+
+function FarmBuilder:new(o)
+   o = o or {}
+   setmetatable(o, self)
+   self.__index = self
+   return o
+end
+
+function FarmBuilder:listMethods()
+   local methods = {}
+   for name,originalFunction in pairs(self) do
+      methods[name] = originalFunction
+   end
+   
+   for name,originalFunction in pairs(getmetatable(self)) do
+      methods[name] = originalFunction
+   end
+   
+   --forbidden symbols
+   methods["__index"] = nil
+   methods["new"] = nil
+   methods["listMethods"] = nil
+   
+   return methods
+end
+
+function FarmBuilder:moveForward()
+   self:_cycle(function() turtle.forward() end)
+end
+
+function FarmBuilder:moveBack()
+   self:_cycle(function() turtle.back() end)
+end
+
+function FarmBuilder:moveUp()
+   self:_cycle(function() turtle.up() end)
+end
+
+function FarmBuilder:moveDown()
+   self:_cycle(function() turtle.down() end)
+end
+
+function FarmBuilder:_cycle(f, limit)
+   if limit ~= nil then
+      limit = 10
+   end
+   
+   local count = limit
+   repeat
+     sleep(1)
+     count = count - 1
+   until f() or count == 0
+end
+
+function FarmBuilder:dig()
+   turtle.dig()
+end
+
+function FarmBuilder:digUp()
+   turtle.digUp()
+end
+
+function FarmBuilder:digDown()
+   turtle.digDown()
+end
+
+function FarmBuilder:discardDig(digFunction)
+   self:_chooseSlotByItem(ITEM.EMPTY)
+   turtle.drop()
+   digFunction(self)
+   turtle.drop()
+end
+
+function FarmBuilder:place(item)
+   self:_doWithItem(item, turtle.place)
+end
+
+function FarmBuilder:placeUp(item)
+   self:_doWithItem(item, turtle.placeUp)
+end
+
+function FarmBuilder:placeDown(item)
+   self:_doWithItem(item, turtle.placeDown)
+end
+
+function FarmBuilder:_doWithItem(item, funcToDo)
+   _chooseSlotByItem(item)
+   if not funcToDo() then
+      error("Operation with "..item.." failed")
+   end
+end
+
+function FarmBuilder:_chooseSlotByItem(item)
+   turtle.select(item)
+end
+
+function FarmBuilder:_sendCommands(commands)
+   -- for start let's assume turtle build from up down - so there is always space below
+   self:discardDig(self:digDown)                                         
+end
+
+function FarmBuilder:buildFarm()
+   -- Building 5x5x4 farm   
+   local hatchesNeeded = 4
+   local valvesNeeded = 1
+   local gearBoxesNeeded = 1
+   local farmBlocksNeeded = 5 * 5 * 4 - hatchesNeeded - valvesNeeded - gearBoxesNeeded
+end
+------------------ FarmBuilder END
+
+------------------ Compass START
+Compass = {SOUTH = 0, WEST = 1, NORTH = 2, EAST = 3}
+Compass.directions = {0 = "SOUTH", 1 = "WEST", 2 = "NORTH", 3 = "EAST"}
+
+function Compass:new(direction)
+   local o = {}
+   setmetatable(o, self)
+   self.__index = self
+   
+   if direction < 0 or direction > 3 then
+      error("Invalid direction value: "..direction)
+   end
+   o.direction = direction
+   return o
+end
+
+function Compass:turnRight()
+   
+end
+
+function Compass:turnLeft()
+end
+
+function Compass:setCurrentDirection()
+end
+
+function Compass:getCurrentDirection()
+end
+
+------------------ Compass END
+
+local farmBuilder = FarmBuilder:new()
+
+farmBuilder:_sendCommands("asdf")

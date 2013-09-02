@@ -1,0 +1,3 @@
+turtle.select(16)
+turtle.refuel()
+print(turtle.getFuelLevel())
