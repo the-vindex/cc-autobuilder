@@ -1,0 +1,179 @@
+function uuid(id,meta)
+   if (meta == nil ) then meta = 0 end
+   return id + meta * 32768
+end
+
+function item(slot, uuid)
+   return {slot = slot, uuid = uuid}
+end
+-- Required input:
+local ITEM = {}
+------------------------ Farm -----------------
+ITEM.FARM_BLOCK       = item(1, uuid(1395)  )--   Farm blocks
+ITEM.FARM_HATCH       = item(2, uuid(1395,3))--   Farm Hatch
+ITEM.FARM_GEARBOX     = item(3, uuid(1395,2))-- Farm Gearbox
+ITEM.FARM_VALVE       = item(4, uuid(1395,4))--   Farm Valve
+ITEM.STONE_BRICK      = item(5, uuid(98,0)  )-- Stone Bricks
+--    Circuit board           ,             )
+-----------------------  Power, ----------------
+ITEM.ENERGY_TESSERACT = item(6, uuid(2007)  )--   Energy Tesseract
+-----------------------  Water, ----------------
+ITEM.WATER_TESSERACT  = item(7, uuid(2007,1))--   Liquid Tesseract
+-----------------------  Items, out ------------
+ITEM.ENDER_CHEST      = item(8, uuid(252, 0))--  Ender Chest
+-----------------------  Items,  in -------------
+ITEM.ITEM_TESSERACT_1 = item(9, uuid(2007,2))--   Fertilizer
+ITEM.ITEM_TESSERACT_2 = item(10 uuid(2007,2))--   Soil
+ITEM.ITEM_TESSERACT_3 = item(11 uuid(2007,2))--   Gremlins
+
+------------------------ Infrastructure - remote connection to home base
+ITEM.FLOPPY           = item(13,uuid(4257,0)) -- floppy for sending commands
+ITEM.ITEM_SORTER      = item(14, nil) -- item sorter for chest access
+ITEM.CHEST_OUT        = item(15, nil) -- chest for items going out to home base
+ITEM.CHEST_IN         = item(16, nil) -- chest for items going in
+------------------------ Reserved spaces
+ITEM.EMPTY            = item(12, nil)  -- may contain anything turtle digs
+
+local FREQ = {}
+FREQ.WATER = 10
+FREQ.ENERGY = 1
+FREQ.FERTILIZER = 2
+FREQ.BOG_EARTH = 3
+ 
+------------------------- OTHER CONSTANTS
+DOWN = "down"
+UP = "up"
+FRONT = "front"
+
+COMMAND_FILE = "commands"
+
+function printApi(t)
+  local count = 0
+  local pagination = 1                
+  for i,v in ipairs(t) do
+      if pagination % 11 == 0 then
+         read()
+      end 
+      print(i)
+      count = count + 1
+      pagination = pagination + 1 
+  end
+  if count == 0 then 
+    for i,v in pairs(t) do
+      if pagination % 11 == 0 then
+         read()
+      end  
+      print(i)
+      pagination = pagination + 1 
+    end
+  end
+end
+
+
+function printTable(t)
+  local pagination = 1
+  for i,v in pairs(t) do
+    if pagination % 11 == 0 then
+       read()
+    end  
+    print(i..": "..v)
+    pagination = pagination + 1 
+  end
+end
+
+
+
+local drive = peripheral.wrap("front")
+local me = peripheral.wrap("left")
+
+function readCommands()
+  turtle.select(1)
+  turtle.drop()
+  
+  local file = fs.open(fs.combine("disk",COMMAND_FILE),"r")
+  
+  local req = {}
+  local itemName
+  local itemCount
+  
+  while true do
+     
+     itemName = file.readLine()
+     itemCount = file.readLine()
+     
+     if itemName == nil then
+        break
+     end
+     if itemCount == nil or tonumber(itemCount) == nil or tonumber(itemCount)>64 then
+        print("Item count incorrect: "..itemCount)
+        break
+     end
+     req[itemName] = tonumber(itemCount)
+  end 
+  file.close()
+  
+  for i,v in pairs(req) do
+    print(i,v)
+  end
+  
+  turtle.select(1)
+  turtle.suck()
+  
+  return req
+end
+
+function extract(uuid,count,targetSlot)
+   -- clear input slot - items are dropped to the ground!
+   turtle.select(2)
+   turtle.turnRight()
+   turtle.drop()
+   turtle.turnLeft()
+   
+   -- get items
+   me.extract(3,uuid,2,count)
+   local extracted = turtle.getItemCount(2)
+   
+   if (turtle.getItemCount(targetSlot)>0 and not(turtle.compareTo(targetSlot))) then
+      return "error-incompatibleItem"
+   end
+   
+   if (turtle.getItemCount(targetSlot) + extracted) > 64 then
+      return "error-tooMuchItems"
+   end 
+   turtle.transferTo(targetSlot)
+   
+   return extracted  
+end
+
+function loadItemsFromSource(request)
+  local currentSlot = 3
+  for itemName, count in pairs(request) do
+     if ITEM[itemName] ~= nil then
+       while(count>0) do
+         local extracted = extract(ITEM[itemName].uuid, count, currentSlot)
+         count = count - extracted
+         if count > 0 then
+           print("Need "..count.." more of "..itemName) 
+           sleep(3) 
+         end
+       end
+       currentSlot = currentSlot + 1
+     else
+       print("Item "..itemName.." not known. Skipping.")
+       request[itemName] = nil
+     end
+  end
+  return currentSlot - 3 -- number of item types
+end
+
+local request = readCommands()
+
+printApi(me)
+printTable(me.list(3))
+
+
+
+--me.extract(3,99699,2,1)
+--printTable(me.listAll())
+--me.retrieve(99699,1,1)
+
