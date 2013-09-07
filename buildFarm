@@ -1,33 +1,61 @@
 ----------- Farm Builder
 -- Program builds a farm and deploys bricks supporting soil.
 -- Turtle starts at south eastern top corner of the farm - just above the farm level.
+
+function uuid(id,meta)
+   if (meta == nil ) then meta = 0 end
+   return id + meta * 32768
+end
+
+-- define metatable for items - we want readable to string
+local itemMeta = {__tostring = function(obj)
+	if obj.name ~= nil then 
+	   return name
+	elseif obj.uuid ~= nil then
+	   return "Unnamed item with uuid "..obj.uuid
+	elseif obj.slot ~= nil then
+	   return "Unnamed item with slot "..obj.slot
+	end
+end}
+
+function item(slot, uuid)
+   local i = {slot = slot, uuid = uuid}
+   setmetatable(i, itemMeta)
+   return i
+end
 -- Required input:
 local ITEM = {}
 ------------------------ Farm -----------------
-ITEM.FARM_BLOCK = 1 --   Farm blocks
-ITEM.FARM_HATCH = 2 --   Farm Hatch
-ITEM.FARM_GEARBOX = 3 -- Farm Gearbox
-ITEM.FARM_VALVE = 4 --   Farm Valve
-ITEM.STONE_BRICKS = 5 -- Stone Bricks
---    Circuit board
------------------------  Power ----------------
-ITEM.ENERGY_TESSERACT = 6 --   Energy Tesseract
------------------------  Water ----------------
-ITEM.WATER_TESSERACT = 7 --   Liquid Tesseract
------------------------  Items out ------------
-ITEM.ENDER_CHEST = 8 --  Ender Chest
------------------------  Items in -------------
-ITEM.ITEM_TESSERACT_1 = 9 --   Fertilizer
-ITEM.ITEM_TESSERACT_2 = 10 --   Soil
-ITEM.ITEM_TESSERACT_3 = 11 --   Gremlins
+ITEM.FARM_BLOCK       = item(1,  uuid(1395)  )--   Farm blocks
+ITEM.FARM_HATCH       = item(2,  uuid(1395,3))--   Farm Hatch
+ITEM.FARM_GEARBOX     = item(3,  uuid(1395,2))-- Farm Gearbox
+ITEM.FARM_VALVE       = item(4,  uuid(1395,4))--   Farm Valve
+ITEM.STONE_BRICK      = item(5,  uuid(98,0)  )-- Stone Bricks
+--    Circuit board           ,              )
+-----------------------  Power,  ----------------
+ITEM.ENERGY_TESSERACT = item(6,  uuid(2007)  )--   Energy Tesseract
+-----------------------  Water,  ----------------
+ITEM.WATER_TESSERACT  = item(7,  uuid(2007,1))--   Liquid Tesseract
+-----------------------  Items,  out ------------
+ITEM.ENDER_CHEST      = item(8,  uuid(252, 0))--  Ender Chest
+-----------------------  Items,   in -------------
+ITEM.ITEM_TESSERACT_1 = item(9,  uuid(2007,2))--   Fertilizer
+ITEM.ITEM_TESSERACT_2 = item(10, uuid(2007,2))--   Soil
+ITEM.ITEM_TESSERACT_3 = item(11, uuid(2007,2))--   Gremlins
 
 ------------------------ Infrastructure - remote connection to home base
-ITEM.FLOPPY = 13 -- floppy for sending commands
-ITEM.DISK_DRIVE = 14 -- disk drive for floppy access
-ITEM.CHEST_OUT = 15 -- chest for items going out to home base
-ITEM.CHEST_IN = 16 -- chest for items going in
+ITEM.DISK_DRIVE       = item(13, uuid(1226,0)) -- disk drive for writing to floppy
+ITEM.FLOPPY           = item(13, uuid(4257,0)) -- floppy for sending commands
+ITEM.ITEM_SORTER      = item(14, nil) -- item sorter for chest access
+ITEM.CHEST_OUT        = item(15, nil) -- chest for items going out to home base
+ITEM.CHEST_IN         = item(16, nil) -- chest for items going in
 ------------------------ Reserved spaces
-ITEM.EMPTY = 12  -- may contain anything turtle digs
+ITEM.EMPTY            = item(12, nil)  -- may contain anything turtle digs
+
+-- set names to items
+for name, value in pairs(ITEM) do
+   value.name = name
+end
 
 local FREQ = {}
 FREQ.WATER = 10
@@ -35,6 +63,13 @@ FREQ.ENERGY = 1
 FREQ.FERTILIZER = 2
 FREQ.BOG_EARTH = 3
  
+------------------------- OTHER CONSTANTS
+DOWN = "down"
+UP = "up"
+FRONT = "front"
+
+COMMAND_FILE = "commands"
+
 
 function printApi(t)
   local count = 0
@@ -69,6 +104,10 @@ function printTable(t)
   end
 end
 
+
+function itemName(item)
+   return item.name
+end
 ----- START of function call recorder
 function s(value)
    if value == nil then
@@ -146,19 +185,19 @@ function FarmBuilder:listMethods()
 end
 
 function FarmBuilder:moveForward()
-   self:_cycle(function() turtle.forward() end)
+   return self:_cycle(function() turtle.forward() end)
 end
 
 function FarmBuilder:moveBack()
-   self:_cycle(function() turtle.back() end)
+   return self:_cycle(function() turtle.back() end)
 end
 
 function FarmBuilder:moveUp()
-   self:_cycle(function() turtle.up() end)
+   return self:_cycle(function() turtle.up() end)
 end
 
 function FarmBuilder:moveDown()
-   self:_cycle(function() turtle.down() end)
+   return self:_cycle(function() turtle.down() end)
 end
 
 function FarmBuilder:_cycle(f, limit)
@@ -171,24 +210,48 @@ function FarmBuilder:_cycle(f, limit)
      sleep(1)
      count = count - 1
    until f() or count == 0
+   
+   return count > 0 -- if count >0, then we were successful
 end
 
-function FarmBuilder:dig()
-   turtle.dig()
+function FarmBuilder:dig(item)
+   self:_doWithItem(item, turtle.dig, true)
 end
 
-function FarmBuilder:digUp()
-   turtle.digUp()
+function FarmBuilder:digUp(item)
+   self:_doWithItem(item, turtle.digUp, true)
 end
 
-function FarmBuilder:digDown()
-   turtle.digDown()
+function FarmBuilder:digDown(item)
+   self:_doWithItem(item, turtle.digDown, true)
 end
 
-function FarmBuilder:discardDig(digFunction)
+function FarmBuilder:suck(item)
+   self:_doWithItem(item, turtle.suck, true)
+end
+
+function FarmBuilder:suckUp(item)
+   self:_doWithItem(item, turtle.suckUp, true)
+end
+
+function FarmBuilder:suckDown(item)
+   self:_doWithItem(item, turtle.suckDown, true)
+end
+
+function FarmBuilder:discardDig(digDirection)
    self:_chooseSlotByItem(ITEM.EMPTY)
    turtle.drop()
-   digFunction(self)
+   
+   if digDirection == DOWN then
+      turtle.digDown()
+   elseif digDirection == UP then
+      turtle.digUp()
+   elseif digDirection == FRONT then
+      turtle.dig()
+   else
+      error("Unknown dig direction: "..digDirection)
+   end
+   
    turtle.drop()
 end
 
@@ -204,20 +267,65 @@ function FarmBuilder:placeDown(item)
    self:_doWithItem(item, turtle.placeDown)
 end
 
-function FarmBuilder:_doWithItem(item, funcToDo)
-   _chooseSlotByItem(item)
-   if not funcToDo() then
+function FarmBuilder:dropDown(item)
+   self:_doWithItem(item, turtle.dropDown)
+end
+
+function FarmBuilder:_doWithItem(item, funcToDo, doNotFail)
+   self:_chooseSlotByItem(item)
+   
+   if not funcToDo() and doNotFail ~= true then
       error("Operation with "..item.." failed")
    end
 end
 
 function FarmBuilder:_chooseSlotByItem(item)
-   turtle.select(item)
+   turtle.select(item.slot)
 end
 
 function FarmBuilder:_sendCommands(commands)
    -- for start let's assume turtle build from up down - so there is always space below
-   self:discardDig(self:digDown)                                         
+   self:discardDig(DOWN)
+   self:moveDown()
+   self:discardDig(DOWN)
+   self:placeDown(ITEM.CHEST_IN)
+   self:moveUp()
+   self:placeDown(ITEM.ITEM_SORTER)
+   
+   self:_extractFromSorter(ITEM.FLOPPY)
+   
+   
+   
+   self:place(ITEM.DISK_DRIVE)
+   self:dropDown(ITEM.FLOPPY)
+   
+   local d = peripheral.wrap("bottom")
+   local file = fs.open(fs.combine("disk", COMMAND_FILE), "w")
+   file.write(commands)
+   file.close()
+   
+   self:suckDown(ITEM.FLOPPY)
+   self:digDown(ITEM.DISK_DRIVE)
+   
+   self:placeDown(ITEM.CHEST_OUT)
+   self:dropDown(ITEM.FLOPPY)
+   self:digDown(ITEM.CHEST_OUT)                                         
+end
+
+function FarmBuilder:_extractFromSorter(item)
+   local sorter = peripheral.wrap("down")
+   sorter.extract(0,item.uuid,1,1)
+   _chooseSlotByItem(ITEM.EMPTY.slot)
+   turtle.transferTo(item.slot)
+end
+
+function FarmBuilder:_requestItems(requestTable)
+   local command = ""
+   for k, v in pairs(requestTable) do
+      command = command..itemName(k).."\n"..v.."\n"
+   end
+   
+   return self:_sendCommands(command)
 end
 
 function FarmBuilder:buildFarm()
@@ -231,7 +339,7 @@ end
 
 ------------------ Compass START
 Compass = {SOUTH = 0, WEST = 1, NORTH = 2, EAST = 3}
-Compass.directions = {0 = "SOUTH", 1 = "WEST", 2 = "NORTH", 3 = "EAST"}
+Compass.directions = {[0] = "SOUTH", [1] = "WEST", [2] = "NORTH", [3] = "EAST"}
 
 function Compass:new(direction)
    local o = {}
@@ -262,4 +370,10 @@ end
 
 local farmBuilder = FarmBuilder:new()
 
-farmBuilder:_sendCommands("asdf")
+farmBuilder:suckDown(ITEM.FLOPPY)
+farmBuilder:digDown(ITEM.DISK_DRIVE)
+
+local req = {}
+req[ITEM.STONE_BRICK] = 20
+req[ITEM.FARM_BLOCK] = 30
+farmBuilder:_requestItems(req)
