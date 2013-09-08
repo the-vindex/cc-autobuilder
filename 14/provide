@@ -3,36 +3,57 @@ function uuid(id,meta)
    return id + meta * 32768
 end
 
+-- define metatable for items - we want readable to string
+local itemMeta = {__tostring = function(obj)
+	if obj.name ~= nil then 
+	   return name
+	elseif obj.uuid ~= nil then
+	   return "Unnamed item with uuid "..obj.uuid
+	elseif obj.slot ~= nil then
+	   return "Unnamed item with slot "..obj.slot
+	else
+	   return "Do not know"
+	end
+end}
+
 function item(slot, uuid)
-   return {slot = slot, uuid = uuid}
+   local i = {slot = slot, uuid = uuid}
+   setmetatable(i, itemMeta)
+   return i
 end
 -- Required input:
 local ITEM = {}
 ------------------------ Farm -----------------
-ITEM.FARM_BLOCK       = item(1, uuid(1395)  )--   Farm blocks
-ITEM.FARM_HATCH       = item(2, uuid(1395,3))--   Farm Hatch
-ITEM.FARM_GEARBOX     = item(3, uuid(1395,2))-- Farm Gearbox
-ITEM.FARM_VALVE       = item(4, uuid(1395,4))--   Farm Valve
-ITEM.STONE_BRICK      = item(5, uuid(98,0)  )-- Stone Bricks
---    Circuit board           ,             )
------------------------  Power, ----------------
-ITEM.ENERGY_TESSERACT = item(6, uuid(2007)  )--   Energy Tesseract
------------------------  Water, ----------------
-ITEM.WATER_TESSERACT  = item(7, uuid(2007,1))--   Liquid Tesseract
------------------------  Items, out ------------
-ITEM.ENDER_CHEST      = item(8, uuid(252, 0))--  Ender Chest
------------------------  Items,  in -------------
-ITEM.ITEM_TESSERACT_1 = item(9, uuid(2007,2))--   Fertilizer
-ITEM.ITEM_TESSERACT_2 = item(10 uuid(2007,2))--   Soil
-ITEM.ITEM_TESSERACT_3 = item(11 uuid(2007,2))--   Gremlins
+ITEM.FARM_BLOCK       = item(1,  uuid(1395,0)  )--   Farm blocks
+ITEM.FARM_HATCH       = item(2,  uuid(1395,3))--   Farm Hatch
+ITEM.FARM_GEARBOX     = item(3,  uuid(1395,2))-- Farm Gearbox
+ITEM.FARM_VALVE       = item(4,  uuid(1395,4))--   Farm Valve
+ITEM.STONE_BRICK      = item(5,  uuid(98,0)  )-- Stone Bricks
+--    Circuit board           ,              )
+-----------------------  Power,  ----------------
+ITEM.ENERGY_TESSERACT = item(6,  uuid(2007)  )--   Energy Tesseract
+-----------------------  Water,  ----------------
+ITEM.WATER_TESSERACT  = item(7,  uuid(2007,1))--   Liquid Tesseract
+-----------------------  Items,  out ------------
+ITEM.ENDER_CHEST      = item(8,  uuid(252, 0))--  Ender Chest
+-----------------------  Items,   in -------------
+ITEM.ITEM_TESSERACT_1 = item(9,  uuid(2007,2))--   Fertilizer
+ITEM.ITEM_TESSERACT_2 = item(10, uuid(2007,2))--   Soil
+ITEM.ITEM_TESSERACT_3 = item(11, uuid(2007,2))--   Gremlins
 
 ------------------------ Infrastructure - remote connection to home base
-ITEM.FLOPPY           = item(13,uuid(4257,0)) -- floppy for sending commands
+ITEM.DISK_DRIVE       = item(13, uuid(1226,0)) -- disk drive for writing to floppy
+ITEM.FLOPPY           = item(13, uuid(4257,0)) -- floppy for sending commands
 ITEM.ITEM_SORTER      = item(14, nil) -- item sorter for chest access
 ITEM.CHEST_OUT        = item(15, nil) -- chest for items going out to home base
 ITEM.CHEST_IN         = item(16, nil) -- chest for items going in
 ------------------------ Reserved spaces
 ITEM.EMPTY            = item(12, nil)  -- may contain anything turtle digs
+
+-- set names to items
+for name, value in pairs(ITEM) do
+   value.name = name
+end
 
 local FREQ = {}
 FREQ.WATER = 10
@@ -85,6 +106,7 @@ end
 
 local drive = peripheral.wrap("front")
 local me = peripheral.wrap("left")
+local outputChest = peripheral.wrap("bottom")
 
 function readCommands()
   turtle.select(1)
@@ -122,27 +144,42 @@ function readCommands()
   return req
 end
 
-function extract(uuid,count,targetSlot)
-   -- clear input slot - items are dropped to the ground!
+function extract(item,count,targetSlot)
+   -- print("Extract "..item.name)
+   -- drop any stale items from temporary slot
    turtle.select(2)
    turtle.turnRight()
    turtle.drop()
    turtle.turnLeft()
-   
+
+   local found = 0 
    -- get items
-   me.extract(3,uuid,2,count)
+   for slotNumber = 0,7 do
+	 local meStack = me.getStackInSlot(slotNumber)
+	 -- print(tostring(slotNumber).."="..meStack.id..":"..meStack.dmg.."="..uuid(meStack.id,meStack.dmg))
+	 if item.uuid == uuid(meStack.id,meStack.dmg) then
+		me.pushIntoSlot("north", slotNumber, count, 1) -- openperipherals use 0-based indexing of slots
+		found = 1
+		break
+	 end
+   end
+   
+   if found == 0 then
+      return 0,"warning-itemNotAvailable"
+   end
+   
    local extracted = turtle.getItemCount(2)
    
    if (turtle.getItemCount(targetSlot)>0 and not(turtle.compareTo(targetSlot))) then
-      return "error-incompatibleItem"
+      return 0,"error-incompatibleItem"
    end
    
    if (turtle.getItemCount(targetSlot) + extracted) > 64 then
-      return "error-tooMuchItems"
+      return 0,"error-tooMuchItems"
    end 
    turtle.transferTo(targetSlot)
    
-   return extracted  
+   return extracted,"" 
 end
 
 function loadItemsFromSource(request)
@@ -150,7 +187,11 @@ function loadItemsFromSource(request)
   for itemName, count in pairs(request) do
      if ITEM[itemName] ~= nil then
        while(count>0) do
-         local extracted = extract(ITEM[itemName].uuid, count, currentSlot)
+         local extracted, err = extract(ITEM[itemName], count, currentSlot)
+		 if isErrorOrWarning(err) then
+		    print("Error from extract: "..err)
+			return 0, err
+		 end
          count = count - extracted
          if count > 0 then
            print("Need "..count.." more of "..itemName) 
@@ -163,15 +204,47 @@ function loadItemsFromSource(request)
        request[itemName] = nil
      end
   end
-  return currentSlot - 3 -- number of item types
+  return currentSlot - 3, nil -- number of item types, error code
 end
 
-local request = readCommands()
+function isErrorOrWarning(errorString)
+   return errorString ~= nil and (errorString:match('^error') or errorString:match('^warning'))
+end
 
-printApi(me)
-printTable(me.list(3))
+function executeRequest(request)
+	local numberOfStacks, err = loadItemsFromSource(request)
 
+	if isErrorOrWarning(err) then
+		return err
+	end
+	-- temp storage is from slot 3
+	for slot = 3,3+numberOfStacks do
+	   turtle.select(slot)
+	   turtle.dropDown()
+	end
 
+	-- as last step drop floppy disk - signal of operation end
+	turtle.select(1)
+	turtle.dropDown()
+	return nil
+end
+
+rs.setOutput("back",false) -- reset error light
+while true do
+    turtle.select(1)
+	while turtle.getItemCount(1) == 0 do
+	   turtle.suckUp()
+	   sleep(1)
+	end
+
+	local request = readCommands()
+	local err = executeRequest(request)
+	if isErrorOrWarning(err) then
+		rs.setOutput("back",1) -- turn on error light
+		
+		error("Error while executing request: "..err)
+	end
+end
 
 --me.extract(3,99699,2,1)
 --printTable(me.listAll())

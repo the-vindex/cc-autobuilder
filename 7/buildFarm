@@ -44,9 +44,8 @@ ITEM.ITEM_TESSERACT_2 = item(10, uuid(2007,2))--   Soil
 ITEM.ITEM_TESSERACT_3 = item(11, uuid(2007,2))--   Gremlins
 
 ------------------------ Infrastructure - remote connection to home base
-ITEM.DISK_DRIVE       = item(13, uuid(1226,0)) -- disk drive for writing to floppy
 ITEM.FLOPPY           = item(13, uuid(4257,0)) -- floppy for sending commands
-ITEM.ITEM_SORTER      = item(14, nil) -- item sorter for chest access
+ITEM.DISK_DRIVE       = item(14, uuid(1226,0)) -- disk drive for writing to floppy
 ITEM.CHEST_OUT        = item(15, nil) -- chest for items going out to home base
 ITEM.CHEST_IN         = item(16, nil) -- chest for items going in
 ------------------------ Reserved spaces
@@ -286,17 +285,7 @@ end
 function FarmBuilder:_sendCommands(commands)
    -- for start let's assume turtle build from up down - so there is always space below
    self:discardDig(DOWN)
-   self:moveDown()
-   self:discardDig(DOWN)
-   self:placeDown(ITEM.CHEST_IN)
-   self:moveUp()
-   self:placeDown(ITEM.ITEM_SORTER)
-   
-   self:_extractFromSorter(ITEM.FLOPPY)
-   
-   
-   
-   self:place(ITEM.DISK_DRIVE)
+   self:placeDown(ITEM.DISK_DRIVE)
    self:dropDown(ITEM.FLOPPY)
    
    local d = peripheral.wrap("bottom")
@@ -328,6 +317,21 @@ function FarmBuilder:_requestItems(requestTable)
    return self:_sendCommands(command)
 end
 
+function FarmBuilder:takeFromChest(item, count)
+    if (count == nil) then
+	   count = 64
+	end
+	local chest = peripheral.wrap("bottom")
+	for slotNumber = 0, 26 do
+	   local slotContents = chest.getStackInSlot(slotNumber)
+	   if slotContents ~= nil and item.uuid == uuid(slotContents.id, slotContents.dmg) then
+	      chest.pushIntoSlot("up", slotNumber, count, item.slot-1) -- openperipherals count slots from 0
+		  return true
+	   end
+	end
+	return false
+end
+
 function FarmBuilder:buildFarm()
    -- Building 5x5x4 farm   
    local hatchesNeeded = 4
@@ -335,6 +339,8 @@ function FarmBuilder:buildFarm()
    local gearBoxesNeeded = 1
    local farmBlocksNeeded = 5 * 5 * 4 - hatchesNeeded - valvesNeeded - gearBoxesNeeded
 end
+
+
 ------------------ FarmBuilder END
 
 ------------------ Compass START
@@ -377,3 +383,15 @@ local req = {}
 req[ITEM.STONE_BRICK] = 20
 req[ITEM.FARM_BLOCK] = 30
 farmBuilder:_requestItems(req)
+
+farmBuilder:placeDown(ITEM.CHEST_IN)
+while true do
+   local gotFloppy = farmBuilder:takeFromChest(ITEM.FLOPPY)
+   if gotFloppy then
+      for item, count in pairs(req) do
+	     farmBuilder:takeFromChest(item,count)		 
+	  end
+	  break
+   end
+   sleep(1)
+end
