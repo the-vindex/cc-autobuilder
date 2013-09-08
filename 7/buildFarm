@@ -502,6 +502,8 @@ function FarmBuilder:buildFarm()
    --1FFFFF +x		|0  T T <= tesseracts etc    |  1FFHFH +x	
    --01   X<--turtle is on 5,0,5 coord           |  01   
    
+   self:_resupply()
+   
    local shapeInfo = ShapeInfo:new()
    for z = 1,4 do
       shapeInfo:fillZLayer(1,5,1,5,z,ITEM.FARM_BLOCK)
@@ -526,55 +528,52 @@ function FarmBuilder:buildFarm()
    local gearBoxesNeeded = 1
    local farmBlocksNeeded = 5 * 5 * 4 - hatchesNeeded - valvesNeeded - gearBoxesNeeded
 
-   --self.coordTracker = CoordTracker:new(5,0,5, CoordTracker.DIR.Y_PLUS)
-   self.coordTracker = CoordTracker:new(1,5,0, CoordTracker.DIR.Y_PLUS)
+   self.coordTracker = CoordTracker:new(5,0,5, CoordTracker.DIR.Y_PLUS)
    
    -- start with top 3 layers at once
-   -- self:discardDig(DOWN)
-   -- self:moveDown()
-   -- self:discardDig(DOWN)
-   -- self:moveDown()
-   -- self:discardDig(FRONT)
-   -- self:moveForward()
+   self:discardDig(DOWN)
+   self:moveDown()
+   self:discardDig(DOWN)
+   self:moveDown()
+   self:discardDig(FRONT)
+   self:moveForward()
    
-   -- self:_clear3Layers()
+   self:_clear3Layers()
    
-
-   
-   -- local linesLeft = 5
-   -- local leftTurn = true
-   -- while (linesLeft > 0) do
-     -- linesLeft = linesLeft - 1
-     -- for i = 1,4 do
-       -- self:placeAndMove(shapeInfo)
-     -- end
-        
-     ----if more lines to do left, then move to next line
-     -- if (linesLeft > 0) then
-       -- self:doLeftTurn(leftTurn)	  	  
-       -- self:placeAndMove(shapeInfo)
-       -- self:doLeftTurn(leftTurn)
-       -- leftTurn = not(leftTurn)
-       -- self:_checkFuel()
-       -- self:_resupply()	   
-     -- else
-       -- self:placeAndMove(shapeInfo)
-     -- end
-   -- end
-   
-   -- self:discardDig(DOWN)
-   -- self:moveDown()
-   -- self:discardDig(DOWN)
-   -- self:moveDown()
-   -- self:discardDig(DOWN)
-   -- self:moveDown()
-   -- self:discardDig(FRONT)
-   -- self:moveForward()
-   
-   -- self:_clear3Layers()
-   print(shapeInfo)
    local linesLeft = 5
    local leftTurn = true
+   while (linesLeft > 0) do
+     linesLeft = linesLeft - 1
+     for i = 1,4 do
+       self:placeAndMove(shapeInfo)
+     end
+        
+     --if more lines to do left, then move to next line
+     if (linesLeft > 0) then
+       self:doLeftTurn(leftTurn)	  	  
+       self:placeAndMove(shapeInfo)
+       self:doLeftTurn(leftTurn)
+       leftTurn = not(leftTurn)
+       self:_checkFuel()
+       self:_resupply()	   
+     else
+       self:placeAndMove(shapeInfo)
+     end
+   end
+   
+   self:discardDig(DOWN)
+   self:moveDown()
+   self:discardDig(DOWN)
+   self:moveDown()
+   self:discardDig(DOWN)
+   self:moveDown()
+   self:discardDig(FRONT)
+   self:moveForward()
+   
+   self:_clear3Layers()
+   
+   linesLeft = 5
+   leftTurn = true
    while (linesLeft > 0) do
      linesLeft = linesLeft - 1
      for i = 1,4 do
