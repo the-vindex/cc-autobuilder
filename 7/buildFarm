@@ -123,12 +123,14 @@ function s(value)
    if value == nil then
      return ""
    elseif type(value) == "table" then
+     print("this is table")
 	 if (value.tostring ~= nil) then
 	    return value:tostring()
+     else
+	    return "table"
 	 end
-   else
-     return value
    end
+   return value
 end
 
 ----- START of function call recorder
@@ -204,35 +206,35 @@ end
 
 function FarmBuilder:turnLeft()
    turtle.turnLeft()
-   coordTracker:turnLeft()
+   self.coordTracker:turnLeft()
 end
 
 function FarmBuilder:turnRight()
    turtle.turnRight()
-   coordTracker:turnRight()
+   self.coordTracker:turnRight()
 end
 
 function FarmBuilder:moveForward()
    local res = self:_cycle(function() return turtle.forward() end)
-   if res then coordTracker.moveForward()
+   if res then self.coordTracker:moveForward() end
    return res
 end
 
 function FarmBuilder:moveBack()   
    local res = self:_cycle(function() return turtle.back() end)
-   if res then coordTracker.moveBack()
+   if res then self.coordTracker:moveBack() end
    return res
 end
 
 function FarmBuilder:moveUp()
    local res = self:_cycle(function() return turtle.up() end)
-   if res then coordTracker.moveUp()
+   if res then self.coordTracker:moveUp() end
    return res
 end
 
 function FarmBuilder:moveDown()
    local res = self:_cycle(function() return turtle.down() end)
-   if res then coordTracker.moveDown()
+   if res then self.coordTracker:moveDown() end
    return res
 end
 
@@ -460,11 +462,15 @@ function FarmBuilder:_clear3Layers()
    end
 end
 
-function FarmBuilder:placeAndConfigure(moveDir)
+function FarmBuilder:placeAndConfigure(shapeInfo, moveDir)
+   assert(shapeInfo ~= nil, "shapeInfo is nil")
    assert(moveDir ~= nil, "moveDir is nil")
+   print("My current:"..self.coordTracker:getCoords():tostring())
    coord = self.coordTracker:coordOf(moveDir)
-   item = self.shapeInfo:getV(coord)
-   if item ~= nil then 
+   print("Target coord:"..coord:tostring())
+   item = shapeInfo:getV(coord)   
+   if item ~= nil then
+      print("Target item:"..item.name)
 	  self[moveDir.place](self, item)
 	  if item.tesseractConfig ~= nil then
 		 local p = peripheral.wrap(moveDir.wrap)
@@ -472,6 +478,15 @@ function FarmBuilder:placeAndConfigure(moveDir)
 		 p.setMode("RECEIVE")
 	  end
    end
+end
+
+function FarmBuilder:placeAndMove(shapeInfo)
+   assert(shapeInfo ~= nil, "shapeInfo is nil")
+   printTable(CoordTracker.MOVE_DIR.UP)   
+   self:placeAndConfigure(shapeInfo, CoordTracker.MOVE_DIR.UP)
+   self:placeAndConfigure(shapeInfo, CoordTracker.MOVE_DIR.DOWN)
+   self:moveBack()
+   self:placeAndConfigure(shapeInfo, CoordTracker.MOVE_DIR.FORWARD)
 end
 
 function FarmBuilder:buildFarm()
@@ -488,7 +503,7 @@ function FarmBuilder:buildFarm()
    --01   X<--turtle is on 5,0,5 coord           |  01   
    
    local shapeInfo = ShapeInfo:new()
-   for z = 4,1 do
+   for z = 1,4 do
       shapeInfo:fillZLayer(1,5,1,5,z,ITEM.FARM_BLOCK)
    end
    -- functional farm blocks
@@ -504,7 +519,7 @@ function FarmBuilder:buildFarm()
    shapeInfo:put(5,3,0,ITEM.ITEM_TESSERACT_3)
    shapeInfo:put(3,1,0,ITEM.ENDER_CHEST)
    shapeInfo:put(3,2,0,ITEM.WATER_TESSERACT)
-   shapeInfo:put(3,3,0,ITEM.FARM_GEARBOX)
+   shapeInfo:put(3,3,0,ITEM.ENERGY_TESSERACT)
    
    local hatchesNeeded = 4
    local valvesNeeded = 1
@@ -515,74 +530,67 @@ function FarmBuilder:buildFarm()
    self.coordTracker = CoordTracker:new(1,5,0, CoordTracker.DIR.Y_PLUS)
    
    -- start with top 3 layers at once
-   self:discardDig(DOWN)
-   self:moveDown()
-   self:discardDig(DOWN)
-   self:moveDown()
-   self:discardDig(FRONT)
-   self:moveForward()
+   -- self:discardDig(DOWN)
+   -- self:moveDown()
+   -- self:discardDig(DOWN)
+   -- self:moveDown()
+   -- self:discardDig(FRONT)
+   -- self:moveForward()
    
-   self:_clear3Layers()
+   -- self:_clear3Layers()
    
-   local placeAndMove = function()
-       local MOVE_DIR = CoordTracker.MOVE_DIR
-	   
-	   placeAndConfigure(MOVE_DIR.UP)
-	   placeAndConfigure(MOVE_DIR.DOWN)
-       self:moveBack()
-	   placeAndConfigure(MOVE_DIR.FRONT)
-   end
+
    
+   -- local linesLeft = 5
+   -- local leftTurn = true
+   -- while (linesLeft > 0) do
+     -- linesLeft = linesLeft - 1
+     -- for i = 1,4 do
+       -- self:placeAndMove(shapeInfo)
+     -- end
+        
+     ----if more lines to do left, then move to next line
+     -- if (linesLeft > 0) then
+       -- self:doLeftTurn(leftTurn)	  	  
+       -- self:placeAndMove(shapeInfo)
+       -- self:doLeftTurn(leftTurn)
+       -- leftTurn = not(leftTurn)
+       -- self:_checkFuel()
+       -- self:_resupply()	   
+     -- else
+       -- self:placeAndMove(shapeInfo)
+     -- end
+   -- end
+   
+   -- self:discardDig(DOWN)
+   -- self:moveDown()
+   -- self:discardDig(DOWN)
+   -- self:moveDown()
+   -- self:discardDig(DOWN)
+   -- self:moveDown()
+   -- self:discardDig(FRONT)
+   -- self:moveForward()
+   
+   -- self:_clear3Layers()
+   print(shapeInfo)
    local linesLeft = 5
    local leftTurn = true
    while (linesLeft > 0) do
      linesLeft = linesLeft - 1
      for i = 1,4 do
-       placeAndMove()
+       self:placeAndMove(shapeInfo)
      end
         
      -- if more lines to do left, then move to next line
      if (linesLeft > 0) then
        self:doLeftTurn(leftTurn)	  	  
-       placeAndMove()
+       self:placeAndMove(shapeInfo)
        self:doLeftTurn(leftTurn)
        leftTurn = not(leftTurn)
        self:_checkFuel()
        self:_resupply()	   
      else
-       placeAndMove()
-     end
-   end
-   
-   self:discardDig(DOWN)
-   self:moveDown()
-   self:discardDig(DOWN)
-   self:moveDown()
-   self:discardDig(DOWN)
-   self:moveDown()
-   self:discardDig(FRONT)
-   self:moveForward()
-   
-   self:_clear3Layers()
-   
-   local linesLeft = 5
-   local leftTurn = true
-   while (linesLeft > 0) do
-     linesLeft = linesLeft - 1
-     for i = 1,4 do
-       placeAndMove()
-     end
-        
-     -- if more lines to do left, then move to next line
-     if (linesLeft > 0) then
-       self:doLeftTurn(leftTurn)	  	  
-       placeAndMove()
-       self:doLeftTurn(leftTurn)
-       leftTurn = not(leftTurn)
-       self:_checkFuel()
-       self:_resupply()	   
-     else
-       placeAndMove()
+       self:placeAndMove(shapeInfo)
      end
    end
 end
@@ -692,24 +700,25 @@ end
 ------------------- Coordinate Tracker END
 
 ------------------- ShapeInfo
+ShapeInfo = {}
 function ShapeInfo:new()
    local o = {}
    setmetatable(o, self)
    self.__index = self
    
-   self.data = {}
+   o.data = {}
    
    return o
 end
 
 function ShapeInfo:put(x,y,z,value)
    local coord = x..":"..y..":"..z
-   data[coord] = value
+   self.data[coord] = value
 end
 
 function ShapeInfo:get(x,y,z)
    local coord = x..":"..y..":"..z
-   return data[coord]
+   return self.data[coord]
 end
 
 -- vector get
@@ -724,9 +733,20 @@ function ShapeInfo:fillZLayer(minX, maxX, minY, maxY, z, value)
 	  end
    end
 end
+
+function ShapeInfo.unitTest()
+   local shapeInfo = ShapeInfo:new()
+   for z = 1,4 do
+      shapeInfo:fillZLayer(1,5,1,5,z,ITEM.FARM_BLOCK)
+   end
+   assert(shapeInfo:get(1,1,4).name == ITEM.FARM_BLOCK.name)
+   shapeInfo:put(1,1,4, ITEM.ITEM_TESSERACT_1)
+   assert(shapeInfo:get(1,1,4).name == ITEM.ITEM_TESSERACT_1.name)
+   print("ShapeInfo unitTest ok")
+end
 ------------------- ShapeInfo END
 
 local farmBuilder = FarmBuilder:new()
 
-CoordTracker.unitTest()
---farmBuilder:buildFarm()
+--ShapeInfo.unitTest()
+farmBuilder:buildFarm()
