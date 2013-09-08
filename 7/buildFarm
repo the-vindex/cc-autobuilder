@@ -18,36 +18,41 @@ local itemMeta = {__tostring = function(obj)
 	end
 end}
 
-function item(slot, uuid)
-   local i = {slot = slot, uuid = uuid}
+function item(slot, uuid, minAmount, restockAmount)
+   local i = {slot = slot, 
+			uuid = uuid, 
+			minAmount = minAmount,        -- if we have this amount, then resupply
+			restockAmount = restockAmount -- how many items to load when resupplying
+			}
    setmetatable(i, itemMeta)
    return i
 end
 -- Required input:
 local ITEM = {}
 ------------------------ Farm -----------------
-ITEM.FARM_BLOCK       = item(1,  uuid(1395)  )--   Farm blocks
-ITEM.FARM_HATCH       = item(2,  uuid(1395,3))--   Farm Hatch
-ITEM.FARM_GEARBOX     = item(3,  uuid(1395,2))-- Farm Gearbox
-ITEM.FARM_VALVE       = item(4,  uuid(1395,4))--   Farm Valve
-ITEM.STONE_BRICK      = item(5,  uuid(98,0)  )-- Stone Bricks
---    Circuit board           ,              )
------------------------  Power,  ----------------
-ITEM.ENERGY_TESSERACT = item(6,  uuid(2007)  )--   Energy Tesseract
------------------------  Water,  ----------------
-ITEM.WATER_TESSERACT  = item(7,  uuid(2007,1))--   Liquid Tesseract
------------------------  Items,  out ------------
-ITEM.ENDER_CHEST      = item(8,  uuid(252, 0))--  Ender Chest
------------------------  Items,   in -------------
-ITEM.ITEM_TESSERACT_1 = item(9,  uuid(2007,2))--   Fertilizer
-ITEM.ITEM_TESSERACT_2 = item(10, uuid(2007,2))--   Soil
-ITEM.ITEM_TESSERACT_3 = item(11, uuid(2007,2))--   Gremlins
+ITEM.FARM_BLOCK       = item(1,  uuid(1395)  , 10, 64)--   Farm blocks
+ITEM.FARM_HATCH       = item(2,  uuid(1395,3), 5 , 10)--   Farm Hatch
+ITEM.FARM_GEARBOX     = item(3,  uuid(1395,2), 2 , 4 )-- Farm Gearbox
+ITEM.FARM_VALVE       = item(4,  uuid(1395,4), 2 , 4 )--   Farm Valve
+ITEM.STONE_BRICK      = item(5,  uuid(98,0)  , 10, 64)-- Stone Bricks
+--    Circuit board           ,              , ) , 00
+-----------------------  Power,  ------------, --, 00--
+ITEM.ENERGY_TESSERACT = item(6,  uuid(2007)  , 0 , 1 )--   Energy Tesseract
+-----------------------  Water,  ------------, --, 00--
+ITEM.WATER_TESSERACT  = item(7,  uuid(2007,1), 0 , 1 )--   Liquid Tesseract
+-----------------------  Items,  out --------, --, 00--
+ITEM.ENDER_CHEST      = item(8,  uuid(252, 0), 1 , 5 )--  Ender Chest
+-----------------------  Items,   in --------, --, 00---
+ITEM.ITEM_TESSERACT_1 = item(9,  uuid(2007,2), 0 , 1 )--   Fertilizer
+ITEM.ITEM_TESSERACT_2 = item(10, uuid(2007,2), 0 , 1 )--   Soil
+ITEM.ITEM_TESSERACT_3 = item(11, uuid(2007,2), 0 , 1 )--   Gremlins
 
 ------------------------ Infrastructure - remote connection to home base
 ITEM.FLOPPY           = item(13, uuid(4257,0)) -- floppy for sending commands
 ITEM.DISK_DRIVE       = item(14, uuid(1226,0)) -- disk drive for writing to floppy
 ITEM.CHEST_OUT        = item(15, nil) -- chest for items going out to home base
 ITEM.CHEST_IN         = item(16, nil) -- chest for items going in
+ITEM.CHARCOAL		  = item(12, uuid(263,1))
 ------------------------ Reserved spaces
 ITEM.EMPTY            = item(12, nil)  -- may contain anything turtle digs
 
@@ -332,6 +337,27 @@ function FarmBuilder:takeFromChest(item, count)
 	return false
 end
 
+-- resupplies by sending a floppy disk to other turtle
+function remoteResupply()
+	local req = {}
+	req[ITEM.STONE_BRICK] = 20
+	req[ITEM.FARM_BLOCK] = 30
+	self:_requestItems(req)
+
+	self:placeDown(ITEM.CHEST_IN)
+	while true do
+	   local gotFloppy = self:takeFromChest(ITEM.FLOPPY)
+	   if gotFloppy then
+		  for item, count in pairs(req) do
+			 self:takeFromChest(item,count)		 
+		  end
+		  break
+	   end
+	   sleep(1)
+	end
+	self:digDown(ITEM.CHEST_IN)
+end
+
 function FarmBuilder:buildFarm()
    -- Building 5x5x4 farm   
    local hatchesNeeded = 4
@@ -376,22 +402,21 @@ end
 
 local farmBuilder = FarmBuilder:new()
 
-farmBuilder:suckDown(ITEM.FLOPPY)
-farmBuilder:digDown(ITEM.DISK_DRIVE)
-
-local req = {}
-req[ITEM.STONE_BRICK] = 20
-req[ITEM.FARM_BLOCK] = 30
-farmBuilder:_requestItems(req)
-
-farmBuilder:placeDown(ITEM.CHEST_IN)
-while true do
-   local gotFloppy = farmBuilder:takeFromChest(ITEM.FLOPPY)
-   if gotFloppy then
-      for item, count in pairs(req) do
-	     farmBuilder:takeFromChest(item,count)		 
-	  end
-	  break
-   end
-   sleep(1)
+function FarmBuilder:_resupply()
+	self:placeDown(ITEM.CHEST_IN)
+	for name, item in pairs(ITEM) do
+	   print("Considering "..name)
+	   if item.minAmount ~= nil then
+	      local weHave = turtle.getItemCount(item.slot)
+		  local weShouldHave = item.restockAmount
+		  while(weHave < weShouldHave) do		     
+		     self:takeFromChest(item,weShouldHave-weHave)
+			 weHave = turtle.getItemCount(item.slot)
+			 sleep(0.3)
+		  end
+	   end
+	end
+	self:digDown(ITEM.CHEST_IN)
 end
+
+farmBuilder:_resupply()
