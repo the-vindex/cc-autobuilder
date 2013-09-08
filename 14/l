@@ -1,0 +1,66 @@
+
+function ident()
+	w = peripheral.wrap("front")
+	sleep(3)
+	event, param, amount = os.pullEvent("isort_item")
+	print (param)
+end
+
+function put()
+    sleep(1)
+	turtle.select(2)
+	turtle.drop()
+end
+function printApi(t)
+  local count = 0
+  local pagination = 1                
+  for i,v in ipairs(t) do
+      if pagination % 11 == 0 then
+         read()
+      end 
+      print(i)
+      count = count + 1
+      pagination = pagination + 1 
+  end
+  if count == 0 then 
+    for i,v in pairs(t) do
+      if pagination % 11 == 0 then
+         read()
+      end  
+      print(i)
+      pagination = pagination + 1 
+    end
+  end
+end
+
+
+function printTable(t)
+  local pagination = 1
+  for i,v in pairs(t) do
+    if pagination % 11 == 0 then
+       read()
+    end  
+    print(i..": "..str(v))
+    pagination = pagination + 1 
+  end
+end
+
+function str(value)
+   if (value == nil) then
+      return ""
+   elseif (type(value) == "boolean") then
+      if value then return "true" else return "false" end
+   else
+      return value
+   end
+end
+
+m = peripheral.wrap("left")
+printApi(m)
+print("----")
+m.pushIntoSlot("north", 2, 40, 13)
+
+-- for i = 0,7 do
+    -- print("Slot "..i)
+	-- printTable(m.getStackInSlot(i))
+-- end
