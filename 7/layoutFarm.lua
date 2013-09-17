@@ -13,15 +13,16 @@ local luaunit = require("luaunit")
 
 --~ s:printFarm()
 
-function calculatePath(coord, shape)
-	local minV, maxV = shape:getBorderCubeCoords()
+function calculatePath(coord, shape, z)
+	local minV, maxV = shape:getBorderCubeCoords(z)
 	local path = {}
 	function addPath(point)
 		path[#path+1] = point
 	end
 
 	function vectorEquals(a, b)
-		assert(a ~= nil and b ~= nil, "Nil values not allowed")
+		assert(a ~= nil, "Nil values not allowed: a")
+		assert(b ~= nil, "Nil values not allowed: b")
 		return (a-b):length() == 0
 	end
 
@@ -67,6 +68,10 @@ function calculatePath(coord, shape)
 	end
 	--v(maxV.x,minV.y,maxV.z), v(maxV.y,minV.x,maxV.z), v(minV.x,minV.y,maxV.z)
 
+	function calculateOpositeCornerIndex(index)
+		return ((index - 1 + 2) % 4) + 1 -- its modulo 4, but we start at 1... so it's more complex
+	end
+
 	local topCorners = {}
 
 	--  2FFFF3
@@ -84,33 +89,34 @@ function calculatePath(coord, shape)
 	local startingPointIndex, startingPoint = findClosestPoint(coord:getCoords(), topCorners)
 	addPath(startingPoint)
 
-	local targetPointIndex = ((startingPointIndex - 1 + 2) % 4) + 1 -- its modulo 4, but we start at 1... so it's more complex
+	local targetPointIndex = calculateOpositeCornerIndex(startingPointIndex)
 	local targetPoint = topCorners[targetPointIndex]
 	local direction = targetPoint - startingPoint
 	local stepX = v(1,0,0) * math.sign(direction.x)
 	local stepY = v(0,1,0) * math.sign(direction.y)
 
-	local stepOuter, stepInner
+	local stepOuter, stepInner, rangeOuter
 
 	if rangeX>rangeY then
-		stepOuter, stepInner = stepY, stepX * rangeX
+		stepOuter, stepInner, rangeOuter = stepY, stepX * rangeX, rangeY
 	else
-		stepOuter, stepInner = stepX, stepY * rangeY
+		stepOuter, stepInner, rangeOuter = stepX, stepY * rangeY, rangeX
 	end
 
 	local current = startingPoint
-	local visitedCorners = {}
 
 	local innerReverse = 1
-	while #visitedCorners < 4 do
+
+	if (rangeOuter % 2 == 1) then
+		local nextPointIndex, _ = findClosestPoint(current + stepInner * innerReverse, topCorners)
+		targetPoint = topCorners[calculateOpositeCornerIndex(nextPointIndex)]
+	end
+
+	while not(vectorEquals(current,targetPoint)) do
 		current = current + stepInner * innerReverse
 		addUniquePoint(path,current)
 
-		if arrayContainsVector(topCorners,current) and not(arrayContainsVector(visitedCorners,current)) then
-			visitedCorners[#visitedCorners + 1] = current
-		end
-
-		if #visitedCorners < 4 then
+		if not(vectorEquals(current,targetPoint)) then
 			current = current + stepOuter
 			addUniquePoint(path,current)
 		end
@@ -129,7 +135,7 @@ function testGoToCoordinate()
 	local s = ShapeInfo:new()
 	s:put(0,0,0,"T")
 
-	local path = calculatePath(c, s)
+	local path = calculatePath(c, s, 0)
 
 	local expected = {v(0,0,0)}
 
@@ -141,11 +147,11 @@ function testDoOneLine()
 	s:put(0,0,0,"T")
 	s:put(5,0,0,"T")
 
-	local path = calculatePath(CoordTracker:new(2,2,2, CoordTracker.DIR.Y_PLUS), s)
+	local path = calculatePath(CoordTracker:new(2,2,2, CoordTracker.DIR.Y_PLUS), s, 0)
 	local expected = {v(0,0,0), v(5,0,0)}
 	assertEquals(path, expected)
 
-	local path = calculatePath(CoordTracker:new(4,4,2, CoordTracker.DIR.Y_PLUS), s)
+	local path = calculatePath(CoordTracker:new(4,4,2, CoordTracker.DIR.Y_PLUS), s, 0)
 	local expected = {v(5,0,0),v(0,0,0)}
 	assertEquals(path, expected)
 end
@@ -156,7 +162,7 @@ function testSmallSquare()
 	s:printFarm()
 
 	-- if no direction is better, we prefer to move along Y axis
-	local path = calculatePath(CoordTracker:new(-1,-1,0, CoordTracker.DIR.Y_PLUS), s)
+	local path = calculatePath(CoordTracker:new(-1,-1,0, CoordTracker.DIR.Y_PLUS), s, 0)
 	local expected = {v(0,0,0), v(0,1,0), v(1,1,0), v(1,0,0)}
 	assertEquals(path, expected)
 end
@@ -167,7 +173,7 @@ function testSmallRectangle()
 	s:printFarm()
 
 	-- if no direction is better, we prefer to move along Y axis
-	local path = calculatePath(CoordTracker:new(-1,-1,0, CoordTracker.DIR.Y_PLUS), s)
+	local path = calculatePath(CoordTracker:new(-1,-1,0, CoordTracker.DIR.Y_PLUS), s, 0)
 	local expected = {v(0,0,0), v(5,0,0), v(5,1,0), v(0,1,0)}
 	assertEquals(path, expected)
 end
@@ -179,7 +185,7 @@ function testRectangle()
 	s:printFarm()
 
 	-- if no direction is better, we prefer to move along Y axis
-	local path = calculatePath(CoordTracker:new(-1,-1,0, CoordTracker.DIR.Y_PLUS), s)
+	local path = calculatePath(CoordTracker:new(-1,-1,0, CoordTracker.DIR.Y_PLUS), s, 0)
 	local expected = {v(0,0,0), v(5,0,0), v(5,1,0), v(0,1,0), v(0,2,0), v(5,2,0)}
 	assertEquals(path, expected)
 end

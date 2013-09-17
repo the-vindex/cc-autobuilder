@@ -1,6 +1,9 @@
 ----------- Farm Builder
 -- Program builds a farm and deploys bricks supporting soil.
 -- Turtle starts at south eastern top corner of the farm - just above the farm level.
+os.loadAPI('loadreq')
+loadreq.include("ShapeInfo")
+loadreq.include("CoordTracker")
 
 function uuid(id,meta)
    if (meta == nil ) then meta = 0 end
@@ -9,7 +12,7 @@ end
 
 -- define metatable for items - we want readable to string
 local itemMeta = {__tostring = function(obj)
-	if obj.name ~= nil then 
+	if obj.name ~= nil then
 	   return name
 	elseif obj.uuid ~= nil then
 	   return "Unnamed item with uuid "..obj.uuid
@@ -19,8 +22,8 @@ local itemMeta = {__tostring = function(obj)
 end}
 
 function item(slot, uuid, minAmount, restockAmount)
-   local i = {slot = slot, 
-			uuid = uuid, 
+   local i = {slot = slot,
+			uuid = uuid,
 			minAmount = minAmount,        -- if we have this amount, then resupply
 			restockAmount = restockAmount -- how many items to load when resupplying
 			}
@@ -72,7 +75,7 @@ FREQ.WATER = 10
 FREQ.ENERGY = 1
 FREQ.FERTILIZER = 2
 FREQ.BOG_EARTH = 3
- 
+
 ------------------------- OTHER CONSTANTS
 DOWN = "down"
 UP = "up"
@@ -83,22 +86,22 @@ COMMAND_FILE = "commands"
 
 function printApi(t)
   local count = 0
-  local pagination = 1                
+  local pagination = 1
   for i,v in ipairs(t) do
       if pagination % 11 == 0 then
          read()
-      end 
+      end
       print(i)
       count = count + 1
-      pagination = pagination + 1 
+      pagination = pagination + 1
   end
-  if count == 0 then 
+  if count == 0 then
     for i,v in pairs(t) do
       if pagination % 11 == 0 then
          read()
-      end  
+      end
       print(i)
-      pagination = pagination + 1 
+      pagination = pagination + 1
     end
   end
 end
@@ -108,9 +111,9 @@ function printTable(t)
   for i,v in pairs(t) do
     if pagination % 11 == 0 then
        read()
-    end  
+    end
     print(i..":"..s(v))
-    pagination = pagination + 1 
+    pagination = pagination + 1
   end
 end
 
@@ -141,7 +144,7 @@ local log = {}
 
 function addLog(functionName, func, parameters)
    local logItem = {functionName = functionName, func = func, parameters = parameters}
-   log[#log+1] = logItem   
+   log[#log+1] = logItem
 end
 
 function wrap(name, f)
@@ -153,7 +156,7 @@ function wrap(name, f)
      if mode == "record" or mode=="plan" then
         addLog(_name,_f,{a1,a2,a3,a4,a5})
      end
-     
+
      if mode ~= "plan" then
         _f(self, a1,a2,a3,a4,a5)
      end
@@ -191,16 +194,16 @@ function FarmBuilder:listMethods()
    for name,originalFunction in pairs(self) do
       methods[name] = originalFunction
    end
-   
+
    for name,originalFunction in pairs(getmetatable(self)) do
       methods[name] = originalFunction
    end
-   
+
    --forbidden symbols
    methods["__index"] = nil
    methods["new"] = nil
    methods["listMethods"] = nil
-   
+
    return methods
 end
 
@@ -220,7 +223,7 @@ function FarmBuilder:moveForward()
    return res
 end
 
-function FarmBuilder:moveBack()   
+function FarmBuilder:moveBack()
    local res = self:_cycle(function() return turtle.back() end)
    if res then self.coordTracker:moveBack() end
    return res
@@ -241,13 +244,13 @@ end
 function FarmBuilder:_cycle(f)
    print("_cycle")
    local count = 10
-  
+
    repeat
      print(count)
      sleep(1)
      count = count - 1
    until f() or count == 0
-   
+
    return count > 0 -- if count >0, then we were successful
 end
 
@@ -282,11 +285,11 @@ function FarmBuilder:discardDig(digDirection)
    else
       digDirections = digDirection
    end
-   
+
    for _, digDirection in ipairs(digDirections) do
 	   self:_chooseSlotByItem(ITEM.EMPTY)
 	   turtle.drop()
-	   
+
 	   if digDirection == DOWN then
 		  turtle.digDown()
 		  turtle.dropDown()
@@ -320,7 +323,7 @@ end
 
 function FarmBuilder:_doWithItem(item, funcToDo, doNotFail)
    self:_chooseSlotByItem(item)
-   
+
    if not funcToDo() and doNotFail ~= true then
       error("Operation with "..item.name.." failed")
    end
@@ -335,18 +338,18 @@ function FarmBuilder:_sendCommands(commands)
    self:discardDig(DOWN)
    self:placeDown(ITEM.DISK_DRIVE)
    self:dropDown(ITEM.FLOPPY)
-   
+
    local d = peripheral.wrap("bottom")
    local file = fs.open(fs.combine("disk", COMMAND_FILE), "w")
    file.write(commands)
    file.close()
-   
+
    self:suckDown(ITEM.FLOPPY)
    self:digDown(ITEM.DISK_DRIVE)
-   
+
    self:placeDown(ITEM.CHEST_OUT)
    self:dropDown(ITEM.FLOPPY)
-   self:digDown(ITEM.CHEST_OUT)                                         
+   self:digDown(ITEM.CHEST_OUT)
 end
 
 function FarmBuilder:_extractFromSorter(item)
@@ -361,7 +364,7 @@ function FarmBuilder:_requestItems(requestTable)
    for k, v in pairs(requestTable) do
       command = command..itemName(k).."\n"..v.."\n"
    end
-   
+
    return self:_sendCommands(command)
 end
 
@@ -392,7 +395,7 @@ function FarmBuilder:remoteResupply()
 	   local gotFloppy = self:takeFromChest(ITEM.FLOPPY)
 	   if gotFloppy then
 		  for item, count in pairs(req) do
-			 self:takeFromChest(item,count)		 
+			 self:takeFromChest(item,count)
 		  end
 		  break
 	   end
@@ -405,11 +408,11 @@ function FarmBuilder:_resupply()
     self:discardDig(DOWN)
 	self:placeDown(ITEM.CHEST_IN)
 	for name, item in pairs(ITEM) do
-	   print("Considering "..name)
-	   if item.minAmount ~= nil and turtle.getItemCount(item.slot)< item.minAmount then
+	   --print("Considering "..name)
+	   if item.minAmount ~= nil and turtle.getItemCount(item.slot)<= item.minAmount then
 	      local weHave = turtle.getItemCount(item.slot)
 		  local weShouldHave = item.restockAmount
-		  while(weHave < weShouldHave) do		     
+		  while(weHave < weShouldHave) do
 		     self:takeFromChest(item,weShouldHave-weHave)
 			 weHave = turtle.getItemCount(item.slot)
 			 sleep(0.3)
@@ -447,16 +450,16 @@ function FarmBuilder:_clear3Layers()
 	     self:discardDig({DOWN, FRONT, UP})
 		 self:moveForward()
 	  end
-	  
+
 	  -- if more lines to do left, then move to next line
 	  if (linesLeft > 0) then
-	     self:doLeftTurn(leftTurn)	  	  
+	     self:doLeftTurn(leftTurn)
 	     self:discardDig({DOWN, FRONT, UP})
 	     self:moveForward()
 	     self:doLeftTurn(leftTurn)
-	     leftTurn = not(leftTurn)	  
+	     leftTurn = not(leftTurn)
 	  else
-	     self:discardDig({DOWN, UP})	 
+	     self:discardDig({DOWN, UP})
 	  end
 	  self:_checkFuel()
    end
@@ -468,7 +471,7 @@ function FarmBuilder:placeAndConfigure(shapeInfo, moveDir)
    print("My current:"..self.coordTracker:getCoords():tostring())
    coord = self.coordTracker:coordOf(moveDir)
    print("Target coord:"..coord:tostring())
-   item = shapeInfo:getV(coord)   
+   item = shapeInfo:getV(coord)
    if item ~= nil then
       print("Target item:"..item.name)
 	  self[moveDir.place](self, item)
@@ -482,7 +485,7 @@ end
 
 function FarmBuilder:placeAndMove(shapeInfo)
    assert(shapeInfo ~= nil, "shapeInfo is nil")
-   printTable(CoordTracker.MOVE_DIR.UP)   
+   printTable(CoordTracker.MOVE_DIR.UP)
    self:placeAndConfigure(shapeInfo, CoordTracker.MOVE_DIR.UP)
    self:placeAndConfigure(shapeInfo, CoordTracker.MOVE_DIR.DOWN)
    self:moveBack()
@@ -493,17 +496,19 @@ function FarmBuilder:buildFarm()
    -- Building 5x5x4 farm
    -- Turtle starts at south eastern top corner of the farm - just above the farm level.
    -- South-eastern is relative to turtle current facing
-   --  Top view			Side view					Top view z=1	
-   -- +y			|+z                          |  +y
-   --5FFFFF			|4FFFFF                      |  5FFFFF		
-   -- FFFFF			| FFFFF                      |   FFFFF		
-   -- FFFFF			| FFFFF                      |   FFGFH		
-   -- FFFFF			| FFXFX <= functional blocks |   FFVFH		
-   --1FFFFF +x		|0  T T <= tesseracts etc    |  1FFHFH +x	
-   --01   X<--turtle is on 5,0,5 coord           |  01   
+   --  Top view			Side view					Top view z=1    Soil layers
+   -- +y			|+z                          |  +y            | E
+   --5FFFFF			|4FFFFF                      |  5FFFFF        | S 
+   -- FFFFF			| FFFFF                      |   FFFFF        |  BFFFFFB
+   -- FFFFF			| FFFFF                      |   FFGFH        | E FFFFF
+   -- FFFFF			| FFXFX <= functional blocks |   FFVFH        | S FFFFF
+   --1FFFFF +x		|0  T T <= tesseracts etc    |  1FFHFH +x     |  BFFFFFB
+   --01   X<--turtle is on 5,0,5 coord           |  01            |     T T
+   --                                                               E   
+   --                                                               S   
    
    self:_resupply()
-   
+
    local shapeInfo = ShapeInfo:new()
    for z = 1,4 do
       shapeInfo:fillZLayer(1,5,1,5,z,ITEM.FARM_BLOCK)
@@ -522,14 +527,14 @@ function FarmBuilder:buildFarm()
    shapeInfo:put(3,1,0,ITEM.ENDER_CHEST)
    shapeInfo:put(3,2,0,ITEM.WATER_TESSERACT)
    shapeInfo:put(3,3,0,ITEM.ENERGY_TESSERACT)
-   
+
    local hatchesNeeded = 4
    local valvesNeeded = 1
    local gearBoxesNeeded = 1
    local farmBlocksNeeded = 5 * 5 * 4 - hatchesNeeded - valvesNeeded - gearBoxesNeeded
 
    self.coordTracker = CoordTracker:new(5,0,5, CoordTracker.DIR.Y_PLUS)
-   
+
    -- start with top 3 layers at once
    self:discardDig(DOWN)
    self:moveDown()
@@ -537,9 +542,9 @@ function FarmBuilder:buildFarm()
    self:moveDown()
    self:discardDig(FRONT)
    self:moveForward()
-   
+
    self:_clear3Layers()
-   
+
    local linesLeft = 5
    local leftTurn = true
    while (linesLeft > 0) do
@@ -547,20 +552,20 @@ function FarmBuilder:buildFarm()
      for i = 1,4 do
        self:placeAndMove(shapeInfo)
      end
-        
+
      --if more lines to do left, then move to next line
      if (linesLeft > 0) then
-       self:doLeftTurn(leftTurn)	  	  
+       self:doLeftTurn(leftTurn)
        self:placeAndMove(shapeInfo)
        self:doLeftTurn(leftTurn)
        leftTurn = not(leftTurn)
        self:_checkFuel()
-       self:_resupply()	   
+       self:_resupply()
      else
        self:placeAndMove(shapeInfo)
      end
    end
-   
+
    self:discardDig(DOWN)
    self:moveDown()
    self:discardDig(DOWN)
@@ -569,9 +574,9 @@ function FarmBuilder:buildFarm()
    self:moveDown()
    self:discardDig(FRONT)
    self:moveForward()
-   
+
    self:_clear3Layers()
-   
+
    linesLeft = 5
    leftTurn = true
    while (linesLeft > 0) do
@@ -579,15 +584,15 @@ function FarmBuilder:buildFarm()
      for i = 1,4 do
        self:placeAndMove(shapeInfo)
      end
-        
+
      -- if more lines to do left, then move to next line
      if (linesLeft > 0) then
-       self:doLeftTurn(leftTurn)	  	  
+       self:doLeftTurn(leftTurn)
        self:placeAndMove(shapeInfo)
        self:doLeftTurn(leftTurn)
        leftTurn = not(leftTurn)
        self:_checkFuel()
-       self:_resupply()	   
+       self:_resupply()
      else
        self:placeAndMove(shapeInfo)
      end
@@ -597,155 +602,19 @@ end
 
 ------------------ FarmBuilder END
 
------------------- Coordinate Tracker
--- Coordinate Tracker will be able to track relative coordinates of the turtle
--- This will be used for data driven block placement
--- (0,0,0) is located in lower left corner, positive z goes up
---  ^ +y
---  |
---  |
---  |-----> +x
--- creates vector
-function v(x,y,z)
-   return vector.new(x,y,z)
-end
-CoordTracker = {}
-CoordTracker.DIR = {X_PLUS  = {name="x+", left="Y_PLUS", right="Y_MINUS", forward=v(1,0,0), back=v(-1,0,0)}, 
-					Y_MINUS = {name="y-", left="X_PLUS", right="X_MINUS" , forward=v(0,-1,0), back=v(0,1,0)}, 
-					X_MINUS = {name="x-", left="Y_MINUS", right="Y_PLUS", forward=v(-1,0,0), back=v(1,0,0)}, 
-					Y_PLUS  = {name="y+", left="X_MINUS", right="X_PLUS", forward=v(0,1,0), back=v(0,-1,0)}
-					} 
 
--- move = vector which will be added to current coordinates
--- wrap = parameter for peripheral.wrap() call
--- place = name of function for placing item in this direction
-CoordTracker.MOVE_DIR = {
-					UP = {move = v(0,0,1), wrap = "top", place = "placeUp"},
-					DOWN = {move = v(0,0,-1), wrap = "bottom", place = "placeDown"},
-					FORWARD = {name="forward", move = nil, wrap="front", place = "place"}, -- for forward move is direction dependant
-					BACK = {name="back", move = nil} -- for back move is direction dependant
-					}
-function CoordTracker:new(x, y, z, direction)
-   local o = {}
-   setmetatable(o, self)
-   self.__index = self
-   
-   if direction.left == nil then
-      error("Direction is suspicious: "..tostring(direction))
-   end
-   o.direction = direction
-   o.coords = v(x,y,z)
-   return o
-end
-
-function CoordTracker:turnRight()
-   self.direction = CoordTracker.DIR[self.direction.right]
-   return self
-end
-
-function CoordTracker:turnLeft()
-   self.direction = CoordTracker.DIR[self.direction.left]
-   return self
-end
-
-function CoordTracker:getCoords()
-   return self.coords
-end
-
-function CoordTracker:moveUp()
-   self.coords = self:coordOf(CoordTracker.MOVE_DIR.UP)
-   return self
-end
-
-function CoordTracker:moveDown()
-   self.coords = self:coordOf(CoordTracker.MOVE_DIR.DOWN)
-   return self
-end
-
-function CoordTracker:moveForward()
-   self.coords = self:coordOf(CoordTracker.MOVE_DIR.FORWARD)
-   return self
-end
-
-function CoordTracker:moveBack()
-   self.coords = self:coordOf(CoordTracker.MOVE_DIR.BACK)
-   return self
-end
-
-function CoordTracker:coordOf(moveDir)
-   assert(moveDir ~= nil, "moveDir not specified")
-   if moveDir == CoordTracker.MOVE_DIR.UP or moveDir == CoordTracker.MOVE_DIR.DOWN then
-      return self.coords + moveDir.move
-   elseif moveDir == CoordTracker.MOVE_DIR.FORWARD or moveDir == CoordTracker.MOVE_DIR.BACK then
-      return self.coords + self.direction[moveDir.name]
-   else
-      error("Unknown direction "..s(moveDir))
-   end
-end
-
-function CoordTracker.unitTest()
-   local c = CoordTracker:new(2,2,2,CoordTracker.DIR.Y_PLUS)
-   local vequals = function(v1, v2)
-      return (v2 - v1):length() == 0
-   end
-   assert(vequals(v(1,1,1),v(1,1,1)), "equals function doesn't work")
-   assert(CoordTracker.DIR.Y_PLUS.name == c:turnRight():turnRight():turnRight():turnRight().direction.name, "after turning 4x right we don't face same direction")
-   assert(CoordTracker.DIR.Y_PLUS.name == c:turnLeft():turnLeft():turnLeft():turnLeft().direction.name, "after turning 4x left we don't face same direction")   
-   assert(vequals(v(2,2,2), c:turnRight():moveForward():turnRight():moveForward():turnRight():moveForward():turnRight():moveForward():getCoords()), "after making circle to right we did not finish at the start")
-   assert(vequals(v(2,2,2), c:turnRight():moveBack():turnRight():moveBack():turnRight():moveBack():turnRight():moveBack():getCoords()), "after making circle to right we did not finish at the start")
-   assert(v(2,2,3),c:moveUp())
-   assert(v(2,2,2),c:moveDown())
-end
 ------------------- Coordinate Tracker END
 
+function log(...)
+   print(...)
+end
 ------------------- ShapeInfo
-ShapeInfo = {}
-function ShapeInfo:new()
-   local o = {}
-   setmetatable(o, self)
-   self.__index = self
-   
-   o.data = {}
-   
-   return o
-end
 
-function ShapeInfo:put(x,y,z,value)
-   local coord = x..":"..y..":"..z
-   self.data[coord] = value
-end
-
-function ShapeInfo:get(x,y,z)
-   local coord = x..":"..y..":"..z
-   return self.data[coord]
-end
-
--- vector get
-function ShapeInfo:getV(vect)
-   return self:get(vect.x,vect.y,vect.z)
-end
-
-function ShapeInfo:fillZLayer(minX, maxX, minY, maxY, z, value)
-   for x = minX, maxX do
-      for y = minY, maxY do
-	     self:put(x,y,z,value)
-	  end
-   end
-end
-
-function ShapeInfo.unitTest()
-   local shapeInfo = ShapeInfo:new()
-   for z = 1,4 do
-      shapeInfo:fillZLayer(1,5,1,5,z,ITEM.FARM_BLOCK)
-   end
-   assert(shapeInfo:get(1,1,4).name == ITEM.FARM_BLOCK.name)
-   shapeInfo:put(1,1,4, ITEM.ITEM_TESSERACT_1)
-   assert(shapeInfo:get(1,1,4).name == ITEM.ITEM_TESSERACT_1.name)
-   print("ShapeInfo unitTest ok")
-end
 ------------------- ShapeInfo END
 
 local farmBuilder = FarmBuilder:new()
+local s = ShapeInfo:new()
+
 
 --ShapeInfo.unitTest()
 farmBuilder:buildFarm()
