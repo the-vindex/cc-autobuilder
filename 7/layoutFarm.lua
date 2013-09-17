@@ -20,14 +20,14 @@ function calculatePath(coord, shape, z)
 		path[#path+1] = point
 	end
 
-	function vectorEquals(a, b)
+	local function vectorEquals(a, b)
 		assert(a ~= nil, "Nil values not allowed: a")
 		assert(b ~= nil, "Nil values not allowed: b")
 		return (a-b):length() == 0
 	end
 
 	--expects vectors
-	function addUniquePoint(array, newValue)
+	local function addUniquePoint(array, newValue)
 		for _, value in ipairs(array) do
 			if vectorEquals(value, newValue) then
 				return
@@ -36,7 +36,7 @@ function calculatePath(coord, shape, z)
 		array[#array + 1] = newValue
 	end
 
-	function findClosestPoint(myPoint, pointArray)
+	local function findClosestPoint(myPoint, pointArray)
 		local minIndex, minDist = nil, 10000000
 
 		for i, point in ipairs(pointArray) do
@@ -58,7 +58,7 @@ function calculatePath(coord, shape, z)
 		end
 	end
 
-	function arrayContainsVector(array, vect)
+	local function arrayContainsVector(array, vect)
 		for _, value in ipairs(array) do
 			if vectorEquals(vect,value) then
 				return true
@@ -68,7 +68,7 @@ function calculatePath(coord, shape, z)
 	end
 	--v(maxV.x,minV.y,maxV.z), v(maxV.y,minV.x,maxV.z), v(minV.x,minV.y,maxV.z)
 
-	function calculateOpositeCornerIndex(index)
+	local function calculateOpositeCornerIndex(index)
 		return ((index - 1 + 2) % 4) + 1 -- its modulo 4, but we start at 1... so it's more complex
 	end
 
