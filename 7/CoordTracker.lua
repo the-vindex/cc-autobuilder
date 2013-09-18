@@ -18,6 +18,10 @@ CoordTracker.DIR = {X_PLUS  = {name="x+", left="Y_PLUS", right="Y_MINUS", forwar
 					X_MINUS = {name="x-", left="Y_MINUS", right="Y_PLUS", forward=v(-1,0,0), back=v(1,0,0)},
 					Y_PLUS  = {name="y+", left="X_MINUS", right="X_PLUS", forward=v(0,1,0), back=v(0,-1,0)}
 					}
+for name, value in pairs(CoordTracker.DIR) do
+	value.leftObj = CoordTracker.DIR[value.left]
+	value.rightObj = CoordTracker.DIR[value.right]
+end
 
 -- move = vector which will be added to current coordinates
 -- wrap = parameter for peripheral.wrap() call
@@ -53,6 +57,15 @@ end
 
 function CoordTracker:getCoords()
    return self.coords
+end
+
+function CoordTracker:getDirection()
+   return self.direction
+end
+
+function CoordTracker:setCoords(newCoords)
+   self.coords = coords
+   return self
 end
 
 function CoordTracker:moveUp()

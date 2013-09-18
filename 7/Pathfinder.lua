@@ -1,6 +1,7 @@
 vector = require("vector")
 require("ShapeInfo")
 require("CoordTracker")
+require("MyAsserts")
 
 Pathfinder = {}
 
@@ -10,12 +11,6 @@ function Pathfinder.calculatePath(coord, shape, z)
 	local path = {}
 	function addPath(point)
 		path[#path+1] = point
-	end
-
-	local function vectorEquals(a, b)
-		assert(a ~= nil, "Nil values not allowed: a")
-		assert(b ~= nil, "Nil values not allowed: b")
-		return (a-b):length() == 0
 	end
 
 	--expects vectors
