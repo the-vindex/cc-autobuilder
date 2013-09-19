@@ -434,6 +434,7 @@ function FarmBuilder.unitTest_automove()
 		return vector.new(x,y,z)
 	end
 
+	-- commands turtle to move to the target point from starting coordinate specified by CoordTracker
 	function FarmBuilder._testMoveTo(target, startingCoordTracker)
 		if startingCoordTracker == nil then
 			startingCoordTracker = CoordTracker:new(0,0,0, CoordTracker.DIR.X_PLUS)
