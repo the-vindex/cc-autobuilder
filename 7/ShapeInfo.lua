@@ -19,7 +19,14 @@ function ShapeInfo:put(x,y,z,value)
    self.coordCache[coord] = {x=x, y=y, z=z}
 end
 
-function ShapeInfo:get(x,y,z)
+-- vector put
+function ShapeInfo:putV(vect, value)
+   self:put(vect.x,vect.y,vect.z,value)
+end
+
+function ShapeInfo:get(x, y, z)
+   assert(type(x) == "number", "Must be number")
+
    local coord = x..":"..y..":"..z
    return self.data[coord]
 end
@@ -180,11 +187,12 @@ function ShapeInfo.unitTest()
    -- test removing items
    local s = ShapeInfo:new()
    s:put(1,2,3,"A")
-   s:put(-1,-2,-3,"B")
+   s:putV(vector.new(-1,-2,-3),"B")
    s:put(-1,-2,-3,nil)
    local minV, maxV = s:getBorderCubeCoords()
    assertEquals(minV, vector.new(1,2,3))
    assertEquals(maxV, vector.new(1,2,3))
+
 
    print("ShapeInfo unitTest ok")
 end
