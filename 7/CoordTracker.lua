@@ -1,4 +1,5 @@
-local vector = require("vector")
+local vector = vector
+if vector == nil then vector = require("vector") end
 ------------------ Coordinate Tracker
 -- Coordinate Tracker will be able to track relative coordinates of the turtle
 -- This will be used for data driven block placement
@@ -12,7 +13,13 @@ local function v(x,y,z)
    return vector.new(x,y,z)
 end
 
+---
+-- @module CoordTracker
+-- @type CoordTracker
 CoordTracker = {}
+
+--- Facing direction
+-- @type DIR
 CoordTracker.DIR = {X_PLUS  = {name="x+", left="Y_PLUS", right="Y_MINUS", forward=v(1,0,0), back=v(-1,0,0)},
 					Y_MINUS = {name="y-", left="X_PLUS", right="X_MINUS" , forward=v(0,-1,0), back=v(0,1,0)},
 					X_MINUS = {name="x-", left="Y_MINUS", right="Y_PLUS", forward=v(-1,0,0), back=v(1,0,0)},
@@ -32,6 +39,14 @@ CoordTracker.MOVE_DIR = {
 					FORWARD = {name="forward", move = nil, wrap="front", place = "place"}, -- for forward move is direction dependant
 					BACK = {name="back", move = nil} -- for back move is direction dependant
 					}
+					
+--- Constructor
+-- @function [parent=#CoordTracker] new
+-- @param #number x X
+-- @param #number y Y
+-- @param #number z Z
+-- @param #DIR direction direction
+-- @return #CoordTracker new instance
 function CoordTracker:new(x, y, z, direction)
    local o = {}
    setmetatable(o, self)
@@ -114,3 +129,4 @@ function CoordTracker.unitTest()
    print("CoordTracker unitTest ok")
 end
 
+return CoordTracker

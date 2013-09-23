@@ -1,10 +1,17 @@
 ---Source: https://raw.github.com/theoriginalbit/CC-Emu-Turtle/master/api
-require("ShapeInfo")
-require("CoordTracker")
+local ShapeInfo = require("ShapeInfo")
+local CoordTracker = require("CoordTracker")
 local vector = require("vector")
 
-_G.ItemStack = {}
+--- Item Stack
+-- @type ItemStack
+ItemStack = {}
 
+---
+-- @function [parent=#ItemStack] new
+-- @param #string itemType
+-- @param #number count
+-- @return #ItemStack
 function ItemStack:new(itemType, count)
    local o = {}
    setmetatable(o, self)
@@ -15,15 +22,26 @@ function ItemStack:new(itemType, count)
    return o
 end
 
-
+---
+-- @type turtle
 _G.turtle = {}
-turtle.native = {}
-turtle.slotContents = {}
-	for i = 1,16 do turtle.slotContents[i] = {} end
 
-turtle.world = ShapeInfo:new()
-turtle.coord = CoordTracker:new(0,0,0, CoordTracker.DIR.Y_PLUS)
-turtle.activeSlot = 1
+function resetTurtle()
+	turtle.native = {}
+	
+	--- @field [parent=#turtle] #table slotContents
+	turtle.slotContents = {}
+		for i = 1,16 do turtle.slotContents[i] = {} end
+	--- @field [parent=#turtle] #ShapeInfo world
+	turtle.world = ShapeInfo:new()
+	--- @field [parent=#turtle] #CoordTracker coord
+	turtle.coord = CoordTracker:new(0,0,0, CoordTracker.DIR.Y_PLUS)
+	--- @field [parent=#turtle] #number activeSlot
+	turtle.activeSlot = 1
+end
+
+resetTurtle()
+
 
 function turtle.native.craft( quantity )
   return false
@@ -80,8 +98,9 @@ function turtle.native.turnRight()
   return true
 end
 
-function turtle.native.select( slot ) -- I don't think this needs implementing
+function turtle.native.select( slot )
   if slot < 0 or slot > 16 then error('Slot out of bounds of inventory: '..slot, 2) end
+  turtle.activeSlot = slot
   return true
 end
 
@@ -394,3 +413,5 @@ function turtle.testAll()
 		end
 	end
 end
+
+return turtle

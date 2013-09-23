@@ -1,5 +1,7 @@
-require("CoordTracker")
-require("ShapeInfo")
+if _VERSION ~= "Luaj-jse 2.0.3" then
+	require("CoordTracker")
+	require("ShapeInfo")
+end
 
 DOWN = "down"
 UP = "up"
@@ -103,6 +105,10 @@ function FarmBuilder:suckDown(item)
 end
 
 function FarmBuilder:discardDig(digDirection)
+   print("DisacrdDig")
+   print("Item: ", ITEM)
+   print("ITEM.EMPTY: ", s(ITEM.EMPTY.slot))
+
    local digDirections
    if (type(digDirection) == "string") then
       digDirections = {digDirection}
@@ -141,8 +147,8 @@ function FarmBuilder:placeDown(item)
    self:_doWithItem(item, turtle.placeDown)
 end
 
-function FarmBuilder:dropDown(item)
-   self:_doWithItem(item, turtle.dropDown)
+function FarmBuilder:dropDown(item, doNotFail)
+   self:_doWithItem(item, turtle.dropDown, doNotFail)
 end
 
 function FarmBuilder:_doWithItem(item, funcToDo, doNotFail)
@@ -154,6 +160,7 @@ function FarmBuilder:_doWithItem(item, funcToDo, doNotFail)
 end
 
 function FarmBuilder:_chooseSlotByItem(item)
+   assert(item ~= nil, "Item must not be nil")
    turtle.select(item.slot)
 end
 
@@ -179,7 +186,10 @@ function FarmBuilder:_resupply()
 	self:placeDown(ITEM.CHEST_IN)
 	for name, item in pairs(ITEM) do
 	   --print("Considering "..name)
-	   if item.minAmount ~= nil and turtle.getItemCount(item.slot)<= item.minAmount then
+	   if item.alwaysClearDuringResupply or (item.minAmount ~= nil and turtle.getItemCount(item.slot)<= item.minAmount) then
+	      if item.alwaysClearDuringResupply then
+	      	self:dropDown(item)
+	      end
 	      local weHave = turtle.getItemCount(item.slot)
 		  local weShouldHave = item.restockAmount
 		  while(weHave < weShouldHave) do
@@ -190,6 +200,13 @@ function FarmBuilder:_resupply()
 	   end
 	end
 	self:digDown(ITEM.CHEST_IN)
+	
+	-- now we discard any items that require this - be careful with this setting
+	for name, item in pairs(ITEM) do
+	   if item.discardDuringResupply then
+	   		self:dropDown(item, true)
+	   end
+	end
 end
 
 function FarmBuilder:_checkFuel()
@@ -239,16 +256,22 @@ function FarmBuilder:placeAndConfigure(shapeInfo, moveDir)
    assert(shapeInfo ~= nil, "shapeInfo is nil")
    assert(moveDir ~= nil, "moveDir is nil")
    --print("My current:"..self.coordTracker:getCoords():tostring())
-   coord = self.coordTracker:coordOf(moveDir)
+   local coord = self.coordTracker:coordOf(moveDir)
    --print("Target coord:"..coord:tostring())
-   item = shapeInfo:getV(coord)
+   local item = shapeInfo:getV(coord)
    if item ~= nil then
       --print("Target item:"..item.name)
 	  self[moveDir.place](self, item)
 	  if item.tesseractConfig ~= nil then
 		 local p = peripheral.wrap(moveDir.wrap)
-		 p.setFrequency(item.tesseractConfig.freq)
-		 p.setMode("RECEIVE")
+		 assert(p ~= nil, "Peripheral not found")
+		 local result = p.setFrequency(item.tesseractConfig.freq)
+		 if (p.setMode ~= nil) then
+		 	p.setMode("RECEIVE")
+		 end
+		 if not(result) then
+		 	print("Configuration of "..item.name.." failed")
+		 end
 	  end
    end
 end
@@ -261,8 +284,9 @@ function FarmBuilder:placeAndMove(shapeInfo)
    self:placeAndConfigure(shapeInfo, CoordTracker.MOVE_DIR.FORWARD)
 end
 
-function FarmBuilder:moveTo(targetCoord)
+function FarmBuilder:moveTo(targetCoord, callbackParam)
 	local whereTo = targetCoord - self.coordTracker:getCoords()
+	local moveCallback = callbackParam or function() end
 	for i = 1,math.abs(whereTo.z) do
 		if(whereTo.z<0) then
 			self:moveDown()
@@ -290,6 +314,7 @@ function FarmBuilder:moveTo(targetCoord)
 
 		for _ = 1,math.abs(whereTo.y) do
 			self:moveForward()
+			moveCallback(self)
 		end
 	end
 
@@ -310,9 +335,35 @@ function FarmBuilder:moveTo(targetCoord)
 
 		for _ = 1,math.abs(whereTo.x) do
 			self:moveForward()
+			moveCallback(self)
 		end
 	end
 end
+
+
+function FarmBuilder:autoBuild(shapeInfo, coordTracker)
+	self.coordTracker = coordTracker
+	local minV,maxV = shapeInfo:getBorderCubeCoords()
+	local maxZ, minZ = maxV.z, minV.z
+	local d = vector.new(0,0,1)
+
+	for z = maxZ, minZ, -1 do
+		local path = Pathfinder.calculatePath(coordTracker, shapeInfo, z)
+		
+		if #path > 0 then
+			self:moveTo(path[1]-d)
+			self:placeAndConfigure(shapeInfo, CoordTracker.MOVE_DIR.UP)
+			for i = 2, #path do
+				self:moveTo(path[i]-d, function() 
+					self:placeAndConfigure(shapeInfo, CoordTracker.MOVE_DIR.UP)
+				end)
+				self:_resupply()
+				self:_checkFuel()
+			end
+		end
+	end
+end
+
 
 function FarmBuilder:buildFarm()
    -- Building 5x5x4 farm
@@ -331,6 +382,7 @@ function FarmBuilder:buildFarm()
 
    self:_resupply()
 
+   --- @{#ShapeInfo}
    local shapeInfo = ShapeInfo:new()
    for z = 1,4 do
       shapeInfo:fillZLayer(1,5,1,5,z,ITEM.FARM_BLOCK)
@@ -349,80 +401,11 @@ function FarmBuilder:buildFarm()
    shapeInfo:put(3,1,0,ITEM.ENDER_CHEST)
    shapeInfo:put(3,2,0,ITEM.WATER_TESSERACT)
    shapeInfo:put(3,3,0,ITEM.ENERGY_TESSERACT)
+   --
+   shapeInfo:layoutFarm(1,1, 1, 5,5, 6, ITEM.STONE_BRICK)
+   shapeInfo:layoutFarm(1,1, 4, 5,5, 6, ITEM.STONE_BRICK)
 
-   local hatchesNeeded = 4
-   local valvesNeeded = 1
-   local gearBoxesNeeded = 1
-   local farmBlocksNeeded = 5 * 5 * 4 - hatchesNeeded - valvesNeeded - gearBoxesNeeded
-
-   self.coordTracker = CoordTracker:new(5,0,5, CoordTracker.DIR.Y_PLUS)
-
-   -- start with top 3 layers at once
-   self:discardDig(DOWN)
-   self:moveDown()
-   self:discardDig(DOWN)
-   self:moveDown()
-   self:discardDig(FRONT)
-   self:moveForward()
-
-   self:_clear3Layers()
-
-   local linesLeft = 5
-   local leftTurn = true
-   while (linesLeft > 0) do
-     linesLeft = linesLeft - 1
-     for i = 1,4 do
-       self:placeAndMove(shapeInfo)
-     end
-
-     --if more lines to do left, then move to next line
-     if (linesLeft > 0) then
-       self:doLeftTurn(leftTurn)
-       self:placeAndMove(shapeInfo)
-       self:doLeftTurn(leftTurn)
-       leftTurn = not(leftTurn)
-       self:_checkFuel()
-       self:_resupply()
-     else
-       self:placeAndMove(shapeInfo)
-     end
-   end
-
-   self:discardDig(DOWN)
-   self:moveDown()
-   self:discardDig(DOWN)
-   self:moveDown()
-   self:discardDig(DOWN)
-   self:moveDown()
-   self:discardDig(FRONT)
-   self:moveForward()
-
-   self:_clear3Layers()
-
-   linesLeft = 5
-   leftTurn = true
-   while (linesLeft > 0) do
-     linesLeft = linesLeft - 1
-     for i = 1,4 do
-       self:placeAndMove(shapeInfo)
-     end
-
-     -- if more lines to do left, then move to next line
-     if (linesLeft > 0) then
-       self:doLeftTurn(leftTurn)
-       self:placeAndMove(shapeInfo)
-       self:doLeftTurn(leftTurn)
-       leftTurn = not(leftTurn)
-       self:_checkFuel()
-       self:_resupply()
-     else
-       self:placeAndMove(shapeInfo)
-     end
-   end
-
-
-
-
+   self:autoBuild(shapeInfo, CoordTracker:new(5,0,5, CoordTracker.DIR.Y_PLUS))
 end
 
 ------------------------- Unit tests
@@ -447,45 +430,161 @@ function FarmBuilder.unitTest_automove()
 		assertEquals(f.coordTracker:getCoords(), target)
 	end
 
-	function FarmBuilder.testMoveDown()
+	function FarmBuilder.automoveTestMoveDown()
 		FarmBuilder._testMoveTo(v(0,0,-3))
 	end
 
-	function FarmBuilder.testMoveUp()
+	function FarmBuilder.automoveTestMoveUp()
 		FarmBuilder._testMoveTo(v(0,0,3))
 	end
 
-	function FarmBuilder.testGoToYWithTurn()
+	function FarmBuilder.automoveTestGoToYWithTurn()
 		FarmBuilder._testMoveTo(v(0,3,0))
 		FarmBuilder._testMoveTo(v(0,-3,0))
 	end
 
-	function FarmBuilder.testGoToYWithoutTurn()
+	function FarmBuilder.automoveTestGoToYWithoutTurn()
 		FarmBuilder._testMoveTo(v(0,3,0), CoordTracker:new(0,0,0, CoordTracker.DIR.Y_PLUS))
 		FarmBuilder._testMoveTo(v(0,-3,0), CoordTracker:new(0,0,0, CoordTracker.DIR.Y_MINUS))
 	end
 
-	function FarmBuilder.testGoToXWithTurn()
+	function FarmBuilder.automoveTestGoToXWithTurn()
 		FarmBuilder._testMoveTo(v(0,3,0), CoordTracker:new(0,0,0, CoordTracker.DIR.Y_PLUS))
 		FarmBuilder._testMoveTo(v(0,-3,0), CoordTracker:new(0,0,0, CoordTracker.DIR.Y_PLUS))
 	end
 
-	function FarmBuilder.testGoToXWithoutTurn()
+	function FarmBuilder.automoveTestGoToXWithoutTurn()
 		FarmBuilder._testMoveTo(v(3,0,0), CoordTracker:new(0,0,0, CoordTracker.DIR.X_PLUS))
 		FarmBuilder._testMoveTo(v(-3,0,0), CoordTracker:new(0,0,0, CoordTracker.DIR.X_MINUS))
 	end
 
-	function FarmBuilder.testGoToAny()
+	function FarmBuilder.automoveTestGoToAny()
 		FarmBuilder._testMoveTo(v(4,3,-5))
 	end
 
-	FarmBuilder.testMoveDown()
-	FarmBuilder.testMoveUp()
-	FarmBuilder.testGoToYWithTurn()
-	FarmBuilder.testGoToYWithoutTurn()
-	FarmBuilder.testGoToXWithTurn()
-	FarmBuilder.testGoToXWithoutTurn()
-	FarmBuilder.testGoToAny()
+	function FarmBuilder.automoveTestMoveWithCallback()
+		local f = FarmBuilder:new()
+		local callbackCalledTimes = 0
+
+		f.coordTracker = CoordTracker:new(0,0,0, CoordTracker.DIR.X_PLUS)
+
+		f:moveTo(v(0,3,0), function(farmBuilder)
+			assert(farmBuilder ~= nil)
+			callbackCalledTimes = callbackCalledTimes + 1
+		end
+		)
+
+		assertEquals(callbackCalledTimes, 3)
+	end
+
+	for name, func in pairs(FarmBuilder) do
+		if string.starts(name, "automoveTest") then
+			print("Running "..name)
+			func()
+		end
+	end
 
 	print("unitTest_automove ok")
+end
+
+function FarmBuilder.unitTest_autobuild()
+	require("luaunit")
+	require("minecraftCompat")
+	require("MyAsserts")
+	local vector = require("vector")
+	local oldResupply = FarmBuilder._resupply
+	FarmBuilder._resupply = function() end
+
+	function FarmBuilder.helper_autobuildTest_setup()
+		-- setup world emulation
+		turtle.world = ShapeInfo:new()
+		turtle.coord = CoordTracker:new(5,5,5, CoordTracker.DIR.X_PLUS)
+		turtle.slotContents[1] = ItemStack:new("A", 10)
+
+		-- setup our turtle model
+		local fb = FarmBuilder:new()
+
+		local request = ShapeInfo:new()
+		local currentCoordFb = CoordTracker:new(5,5,5, CoordTracker.DIR.X_PLUS)
+		return fb, request, currentCoordFb
+	end
+
+	function FarmBuilder.autobuildTest_onePoint()
+		local fb, request, currentCoordFb = FarmBuilder.helper_autobuildTest_setup()
+
+		request:put(0,0,0, {slot=1})
+
+		fb:autoBuild(request, currentCoordFb)
+		assertEquals(turtle.coord:getCoords(), vector.new(0,0,-1))
+		assertEquals(turtle.world:get(0,0,0), "A")
+	end
+
+
+	function FarmBuilder.autobuildTest_twoPoints()
+		local fb, request, currentCoordFb = FarmBuilder.helper_autobuildTest_setup()
+
+		request:put(0,0,0, {slot=1})
+		request:put(-2,0,0, {slot=1})
+
+		fb:autoBuild(request, currentCoordFb)
+		assertEquals(turtle.coord:getCoords(), vector.new(-2,0,-1))
+		assertEquals(turtle.world:get(0,0,0), "A")
+		assertEquals(turtle.world:get(-1,0,0), nil)
+		assertEquals(turtle.world:get(-2,0,0), "A")
+	end
+	
+	function FarmBuilder.autobuildTest_oneLine()
+		local fb, request, currentCoordFb = FarmBuilder.helper_autobuildTest_setup()
+
+		request:put(0,0,0, {slot=1})
+		request:put(-1,0,0, {slot=1})
+		request:put(-2,0,0, {slot=1})
+
+		fb:autoBuild(request, currentCoordFb)
+		assertEquals(turtle.coord:getCoords(), vector.new(-2,0,-1))
+		assertEquals(turtle.world:get(0,0,0), "A")
+		assertEquals(turtle.world:get(-1,0,0), "A")
+		assertEquals(turtle.world:get(-2,0,0), "A")
+	end
+
+	function FarmBuilder.autobuildTest_square()
+		local fb, request, currentCoordFb = FarmBuilder.helper_autobuildTest_setup()
+
+		request:put(0,0,0, {slot=1})
+		request:put(-3,0,0, {slot=1})
+		request:put(-2,2,0, {slot=1})
+		request:put(0,1,0, {slot=1})
+
+		fb:autoBuild(request, currentCoordFb)
+		assertEquals(turtle.world:get(0,0,0), "A")
+		assertEquals(turtle.world:get(-3,0,0), "A")
+		assertEquals(turtle.world:get(-2,2,0), "A")
+		assertEquals(turtle.world:get(0,1,0), "A")
+	end
+	
+	function FarmBuilder.autobuildTest_multiZ()
+		local fb, request, currentCoordFb = FarmBuilder.helper_autobuildTest_setup()
+
+		request:put(0,0,1, {slot=1, name="A"})
+		request:put(-3,0,3, {slot=1, name="A"}) -- by this we test empty layer handling (layer 2)
+		request:put(-2,2,0, {slot=1, name="A"})
+		request:put(0,1,0, {slot=1, name="A"})
+
+		fb:autoBuild(request, currentCoordFb)		
+		assertEquals(turtle.world:get(-3,0,3), "A")
+		assertEquals(turtle.world:get(0,0,1), "A")
+		assertEquals(turtle.world:get(-2,2,0), "A")
+		assertEquals(turtle.world:get(0,1,0), "A")
+	end
+
+ 	for name, func in pairs(FarmBuilder) do
+ 		if string.starts(name, "autobuildTest_") then
+ 			print("Running "..name)
+ 			func()
+ 		end
+ 	end
+
+	FarmBuilder._resupply = oldResupply
+	
+	print("unitTest_autobuild ok")
 end

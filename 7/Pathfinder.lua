@@ -1,13 +1,20 @@
-vector = require("vector")
-require("ShapeInfo")
-require("CoordTracker")
-require("MyAsserts")
+if _VERSION ~= "Luaj-jse 2.0.3" then
+	vector = require("vector")
+	require("ShapeInfo")
+	require("CoordTracker")
+end
 
 Pathfinder = {}
 
 function Pathfinder.calculatePath(coord, shape, z)
 	local v = Pathfinder.v
 	local minV, maxV = shape:getBorderCubeCoords(z)
+	
+	-- 
+	if minV == nil then
+		return {}, "Layer is empty"
+	end
+	
 	local path = {}
 	function addPath(point)
 		path[#path+1] = point
@@ -119,6 +126,8 @@ end
 
 function Pathfinder.unitTests()
 	local luaunit = require("luaunit")
+	require("MyAsserts")
+	
 	local v = Pathfinder.v
 	local calculatePath = Pathfinder.calculatePath
 
@@ -181,12 +190,26 @@ function Pathfinder.unitTests()
 		local expected = {v(0,0,0), v(5,0,0), v(5,1,0), v(0,1,0), v(0,2,0), v(5,2,0)}
 		assertEquals(path, expected)
 	end
+	
+	local function testOptimizeLineMovement()
+		local s = ShapeInfo:new()
+		s:fillZLayer(0,5,0,0,0,"F")
+		s:fillZLayer(2,3,1,1,0,"F")
+		s:fillZLayer(0,5,2,2,0,"F")
+		s:printFarm()
+
+		-- if no direction is better, we prefer to move along Y axis
+		local path = calculatePath(CoordTracker:new(-1,-1,0, CoordTracker.DIR.Y_PLUS), s, 0)
+		local expected = {v(0,0,0), v(5,0,0), v(5,1,0), v(0,1,0), v(0,2,0), v(5,2,0)}
+		assertEquals(path, expected)
+	end
 
 	testGoToCoordinate()
 	testDoOneLine()
 	testSmallSquare()
 	testSmallRectangle()
 	testRectangle()
+	testOptimizeLineMovement()
 end
 
 return Pathfinder

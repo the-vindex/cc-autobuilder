@@ -1,9 +1,15 @@
 ----------- Farm Builder
 -- Program builds a farm and deploys bricks supporting soil.
 -- Turtle starts at south eastern top corner of the farm - just above the farm level.
+os.unloadAPI('loadreq')
 os.loadAPI('loadreq')
-loadreq.include("ShapeInfo")
-loadreq.include("CoordTracker")
+require = loadreq.include
+
+require("ShapeInfo",nil,getfenv(1))
+require("CoordTracker",nil,getfenv(1))
+require("MyAsserts",nil,getfenv(1))
+require("Pathfinder",nil,getfenv(1))
+require("FarmBuilder",nil,getfenv(1))
 
 function uuid(id,meta)
    if (meta == nil ) then meta = 0 end
@@ -19,7 +25,10 @@ local itemMeta = {__tostring = function(obj)
 	elseif obj.slot ~= nil then
 	   return "Unnamed item with slot "..obj.slot
 	end
-end}
+end,
+alwaysClearDuringResupply = false,
+discardDuringResupply = false
+}
 
 function item(slot, uuid, minAmount, restockAmount)
    local i = {slot = slot,
@@ -31,20 +40,22 @@ function item(slot, uuid, minAmount, restockAmount)
    return i
 end
 -- Required input:
-local ITEM = {}
+ITEM = {}
+local itemmt = {__index = function(table, key) error("Unexisting key: "..key) end}
+setmetatable(ITEM,itemmt)
 ------------------------ Farm -----------------
 ITEM.FARM_BLOCK       = item(1,  uuid(1395)  , 10, 64)--   Farm blocks
 ITEM.FARM_HATCH       = item(2,  uuid(1395,3), 5 , 10)--   Farm Hatch
 ITEM.FARM_GEARBOX     = item(3,  uuid(1395,2), 2 , 4 )-- Farm Gearbox
 ITEM.FARM_VALVE       = item(4,  uuid(1395,4), 2 , 4 )--   Farm Valve
-ITEM.STONE_BRICK      = item(5,  uuid(98,0)  , 10, 64)-- Stone Bricks
+ITEM.STONE_BRICK      = item(5,  uuid(98,0)  , 30, 64)-- Stone Bricks
 --    Circuit board           ,              , ) , 00
 -----------------------  Power,  ------------, --, 00--
 ITEM.ENERGY_TESSERACT = item(6,  uuid(2007)  , 0 , 1 )--   Energy Tesseract
 -----------------------  Water,  ------------, --, 00--
 ITEM.WATER_TESSERACT  = item(7,  uuid(2007,1), 0 , 1 )--   Liquid Tesseract
 -----------------------  Items,  out --------, --, 00--
-ITEM.ENDER_CHEST      = item(8,  uuid(252, 0), 1 , 5 )--  Ender Chest
+ITEM.ENDER_CHEST      = item(8,  uuid(252, 0), 2 , 5 )--  Ender Chest
 -----------------------  Items,   in --------, --, 00---
 ITEM.ITEM_TESSERACT_1 = item(9,  uuid(2007,2), 0 , 1 )--   Fertilizer
 ITEM.ITEM_TESSERACT_2 = item(10, uuid(2007,2), 0 , 1 )--   Soil
@@ -56,6 +67,12 @@ ITEM.WATER_TESSERACT.tesseractConfig = {freq = 10}
 ITEM.ITEM_TESSERACT_1.tesseractConfig = {freq = 10}
 ITEM.ITEM_TESSERACT_2.tesseractConfig = {freq = 11}
 ITEM.ITEM_TESSERACT_3.tesseractConfig = {freq = 12}
+
+ITEM.ENERGY_TESSERACT.alwaysClearDuringResupply = true
+ITEM.WATER_TESSERACT.alwaysClearDuringResupply  = true
+ITEM.ITEM_TESSERACT_1.alwaysClearDuringResupply = true
+ITEM.ITEM_TESSERACT_2.alwaysClearDuringResupply = true
+ITEM.ITEM_TESSERACT_3.alwaysClearDuringResupply = true
 ------------------------ Infrastructure - remote connection to home base
 ITEM.FLOPPY           = item(13, uuid(4257,0)) -- floppy for sending commands
 ITEM.DISK_DRIVE       = item(14, uuid(1226,0)) -- disk drive for writing to floppy
@@ -64,13 +81,14 @@ ITEM.CHEST_IN         = item(16, nil) -- chest for items going in
 ITEM.CHARCOAL		  = item(12, uuid(263,1))
 ------------------------ Reserved spaces
 ITEM.EMPTY            = item(12, nil)  -- may contain anything turtle digs
+ITEM.EMPTY.discardDuringResupply = true
 
 -- set names to items
 for name, value in pairs(ITEM) do
    value.name = name
 end
 
-local FREQ = {}
+FREQ = {}
 FREQ.WATER = 10
 FREQ.ENERGY = 1
 FREQ.FERTILIZER = 2
@@ -118,7 +136,7 @@ function s(value)
    if value == nil then
      return ""
    elseif type(value) == "table" then
-     print("this is table")
+     --print("this is table")
 	 if (value.tostring ~= nil) then
 	    return value:tostring()
      else
@@ -131,14 +149,14 @@ end
 
 
 ------------------ FarmBuilder Start
-require("FarmBuilder")
 
 ------------------ FarmBuilder END
-
-
+print(CoordTracker)
+print("Starting")
 local farmBuilder = FarmBuilder:new()
-local s = ShapeInfo:new()
 
-
+test()
 --ShapeInfo.unitTest()
 farmBuilder:buildFarm()
+--farmBuilder:_resupply()
+

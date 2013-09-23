@@ -1,6 +1,15 @@
-local vector = require("vector")
+if _VERSION ~= "Luaj-jse 2.0.3" then
+	vector = require("vector")
+end
 
+---
+-- @module ShapeInfo
+-- @type ShapeInfo
 ShapeInfo = {}
+
+--- Create a new ShapeInfo
+-- @function [parent=#ShapeInfo] new
+-- @return ShapeInfo
 function ShapeInfo:new()
    local o = {}
    setmetatable(o, self)
@@ -60,6 +69,7 @@ function ShapeInfo:getBorderCubeCoords(zFrom, zTo)
    assert(not(isLimitZ) or zFrom <= zTo, "From must be greater then To")
 
    local minX, maxX, minY, maxY, minZ, maxZ = 1000000,-1000000,1000000,-1000000,1000000,-1000000
+   local pointInCubeExists = false
    for coord, value in pairs(self.data) do
 		local c = self.coordCache[coord]
 		if value ~= nil and (not(isLimitZ) or (c.z >= zFrom and c.z <= zTo)) then
@@ -69,12 +79,21 @@ function ShapeInfo:getBorderCubeCoords(zFrom, zTo)
 			maxX = math.max(maxX, c.x)
 			maxY = math.max(maxY, c.y)
 			maxZ = math.max(maxZ, c.z)
+			pointInCubeExists = true
 		end
    end
-   return vector.new(minX,minY,minZ), vector.new(maxX,maxY,maxZ)
+   if pointInCubeExists then
+   	return vector.new(minX,minY,minZ), vector.new(maxX,maxY,maxZ)
+   else
+   	return nil, nil
+   end
 end
 
-
+---
+-- @function [parent=#ShapeInfo] layoutFarm
+-- @param #number farmCoordX minimal X coordinate of the farm block
+-- @param #number farmCoordY minimal Y coordinate of the farm block
+-- @param #number z z-layer to fill
 function ShapeInfo:layoutFarm(farmCoordX, farmCoordY, z, farmSizeX, farmSizeY, radius, value)
 	local insideFarmX = function(checkX)
 		return checkX>= farmCoordX and checkX<=farmCoordX + farmSizeX - 1
@@ -186,12 +205,20 @@ function ShapeInfo.unitTest()
 
    -- test removing items
    local s = ShapeInfo:new()
-   s:put(1,2,3,"A")
+   s:putV(vector.new(1,2,3),"A")
    s:putV(vector.new(-1,-2,-3),"B")
    s:put(-1,-2,-3,nil)
    local minV, maxV = s:getBorderCubeCoords()
    assertEquals(minV, vector.new(1,2,3))
    assertEquals(maxV, vector.new(1,2,3))
+   
+   -- test empty layer
+   local s = ShapeInfo:new()
+   s:put(1,2,3,"A")
+   s:putV(vector.new(-1,-2,-3),"B")
+   local minV, maxV = s:getBorderCubeCoords(2)
+   assertEquals(minV, nil)
+   assertEquals(maxV, nil)
 
 
    print("ShapeInfo unitTest ok")
@@ -257,3 +284,5 @@ function ShapeInfo.unitTest_layout()
 
 	print("Layout test ok")
 end
+
+return ShapeInfo
